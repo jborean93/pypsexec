@@ -2,7 +2,7 @@ import logging
 import struct
 import uuid
 
-from smbprotocol.file import Open
+from smbprotocol.open import Open
 from smbprotocol.tree import TreeConnect
 from smbprotocol.constants import Commands, CreateDisposition, CreateOptions, \
     CtlCode, FilePipePrinterAccessMask, ImpersonationLevel, IOCTLFlags, \
@@ -174,15 +174,14 @@ class SCMRApi(object):
 
     def __init__(self, smb_session):
         # connect to the IPC tree and open a handle at svcctl
-        self.tree = TreeConnect(smb_session)
-        self.handle = Open()
+        self.tree = TreeConnect(smb_session, r"\\%s\IPC$"
+                                % smb_session.connection.server_name)
+        self.handle = Open(self.tree, "svcctl")
         self.call_id = 0
 
     def open(self):
-        self.tree.connect(r"\\%s\IPC$"
-                          % self.tree.session.connection.server_name)
-        self.handle.open(self.tree, "svcctl",
-                         ImpersonationLevel.Impersonation,
+        self.tree.connect()
+        self.handle.open(ImpersonationLevel.Impersonation,
                          FilePipePrinterAccessMask.GENERIC_READ |
                          FilePipePrinterAccessMask.GENERIC_WRITE,
                          0,
@@ -256,6 +255,7 @@ class SCMRApi(object):
 
     def close(self):
         self.handle.close(False)
+        self.tree.disconnect()
 
     ### SCMR Functions below
 

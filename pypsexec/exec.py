@@ -1,4 +1,3 @@
-import os
 import socket
 import struct
 import time
@@ -14,12 +13,11 @@ from smbprotocol.connection import Connection
 from smbprotocol.constants import FilePipePrinterAccessMask, \
     FileAttributes, ImpersonationLevel, CreateOptions, CreateDisposition, \
     ShareAccess, CtlCode, IOCTLFlags, Commands, NtStatus
-from smbprotocol.file import Open
+from smbprotocol.open import Open
 from smbprotocol.messages import SMB2IOCTLRequest, SMB2ReadResponse
 from smbprotocol.session import Session
 from smbprotocol.tree import TreeConnect
 from smbprotocol.exceptions import SMBResponseException
-from smbprotocol.transport.direct_tcp import Tcp
 
 try:
     from collections import OrderedDict
@@ -54,9 +52,8 @@ def ioctl_pipe(tree, name):
 
 
 def create_pipe(tree, name, access_mask):
-    pipe = Open()
-    pipe.open(tree, name,
-              ImpersonationLevel.Impersonation,
+    pipe = Open(tree, name)
+    pipe.open(ImpersonationLevel.Impersonation,
               access_mask,
               FileAttributes.FILE_ATTRIBUTE_NORMAL,
               ShareAccess.FILE_SHARE_READ |
@@ -116,7 +113,6 @@ def get_buffer(resp):
 #server = "DC01.domain.local"
 server = "192.168.56.10"
 port = 445
-signing_required = True
 username = "vagrant-domain@DOMAIN.LOCAL"
 password = "VagrantPass1"
 #pid = os.getpid()
@@ -137,13 +133,12 @@ exe_path = "%s.exe" % svc_name
 # Setup SMB connection and session
 guid = uuid.uuid4()
 
-connection = Connection(guid, signing_required, server, port)
-connection.connect()
+connection = Connection(guid, server, port, require_signing=True)
 try:
-    connection.negotiate()
+    connection.connect()
 
-    session = Session(connection, username, password, must_encrypt=False)
-    session.authenticate()
+    session = Session(connection, username, password, require_encryption=False)
+    session.connect()
 
     # open the service manager
     scmr_api = SCMRApi(session)
@@ -179,13 +174,13 @@ try:
                 scmr_api.close_service_handle_w(service_handle)
 
             # copy the executable across and overwrite the existing file
-            tree_admin = TreeConnect(session)
-            tree_admin.connect(r"\\%s\ADMIN$" % server)
+            tree_admin = TreeConnect(session, r"\\%s\ADMIN$"
+                                     % session.connection.server_name)
+            tree_admin.connect()
 
             # Copy the paexec payload to the host
-            paexec = Open()
-            paexec.open(tree_admin, exe_path,
-                        ImpersonationLevel.Impersonation,
+            paexec = Open(tree_admin, exe_path)
+            paexec.open(ImpersonationLevel.Impersonation,
                         FilePipePrinterAccessMask.FILE_WRITE_DATA,
                         FileAttributes.FILE_ATTRIBUTE_NORMAL,
                         ShareAccess.FILE_SHARE_READ,
@@ -221,8 +216,8 @@ try:
         scmr_api.close()
 
     # connect to named pipe of the service
-    tree = TreeConnect(session)
-    tree.connect(r"\\%s\IPC$" % session.connection.server_name)
+    tree = TreeConnect(session, r"\\%s\IPC$" % session.connection.server_name)
+    tree.connect()
 
     settings = PAExecSettingsBuffer()
     settings['username'] = username.encode('utf-16-le')
@@ -327,9 +322,7 @@ try:
         rc = PAExecReturnBuffer()
         rc.unpack(resp_msg['buffer'].get_value())
     finally:
-        a = ""
-        #for pipe in cleanup_pipes:
-        #    pipe.close(False)
+        tree.disconnect()
 
     # stop and delete the service at the end
     scmr_api = SCMRApi(session)
@@ -362,19 +355,21 @@ try:
         scmr_api.close()
 
     # Delete the executable at the end of the task
-    #tree_admin = TreeConnect(session)
-    #tree_admin.connect(r"\\%s\ADMIN$" % server)
+    tree_admin = TreeConnect(session, r"\\%s\ADMIN$"
+                             % session.connection.server_name)
+    tree_admin.connect()
 
-    #paexec = Open()
-    #paexec.open(tree_admin, exe_path,
-    #            ImpersonationLevel.Impersonation,
-    #            FilePipePrinterAccessMask.FILE_READ_DATA |
-    #            FilePipePrinterAccessMask.DELETE,
-    #            0,
-    #            0,
-    #            CreateDisposition.FILE_OVERWRITE_IF,
-    #            CreateOptions.FILE_NON_DIRECTORY_FILE |
-    #            CreateOptions.FILE_DELETE_ON_CLOSE)
+    paexec = Open(tree_admin, exe_path)
+    paexec.open(ImpersonationLevel.Impersonation,
+                FilePipePrinterAccessMask.FILE_READ_DATA |
+                FilePipePrinterAccessMask.DELETE,
+                0,
+                0,
+                CreateDisposition.FILE_OVERWRITE_IF,
+                CreateOptions.FILE_NON_DIRECTORY_FILE |
+                CreateOptions.FILE_DELETE_ON_CLOSE)
+    paexec.close(False)
+    tree_admin.disconnect()
 finally:
     connection.disconnect()
 
