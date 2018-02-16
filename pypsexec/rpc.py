@@ -208,7 +208,7 @@ class SyntaxIdElement(Structure):
 
     def __init__(self):
         self.fields = OrderedDict([
-            ('uuid', UuidField(byte_order='>')),
+            ('uuid', UuidField(little_endian=False)),
             ('version', IntField(size=4))
         ])
         super(SyntaxIdElement, self).__init__()

@@ -1,6 +1,5 @@
 import socket
 import struct
-import time
 import uuid
 
 from pypsexec.exceptions import SCMRException
@@ -9,22 +8,21 @@ from pypsexec.paexec import paexec_out_stream, get_unique_id, \
     PAExecReturnBuffer, PAExecStartBuffer
 from pypsexec.scmr import SCMRApi, DesiredAccess, ServiceType, \
     ErrorControl, StartType, CurrentState, ControlCode
-from smbprotocol.connection import Connection
-from smbprotocol.constants import FilePipePrinterAccessMask, \
-    FileAttributes, ImpersonationLevel, CreateOptions, CreateDisposition, \
-    ShareAccess, CtlCode, IOCTLFlags, Commands, NtStatus
-from smbprotocol.open import Open
-from smbprotocol.messages import SMB2IOCTLRequest, SMB2ReadResponse
+from smbprotocol.connection import Commands, Connection, NtStatus
+from smbprotocol.exceptions import SMBResponseException
+from smbprotocol.ioctl import CtlCode, IOCTLFlags, SMB2IOCTLRequest
+from smbprotocol.open import CreateOptions, CreateDisposition, \
+    FileAttributes, FilePipePrinterAccessMask, ImpersonationLevel, Open, \
+    ShareAccess, SMB2ReadResponse
 from smbprotocol.session import Session
 from smbprotocol.tree import TreeConnect
-from smbprotocol.exceptions import SMBResponseException
 
 try:
     from collections import OrderedDict
 except ImportError:
     from ordereddict import OrderedDict
 
-from multiprocessing.dummy import Pool, Process, Queue, Pipe, Lock
+from multiprocessing.dummy import Process, Queue
 from queue import Empty
 
 
@@ -120,10 +118,10 @@ pid = 6632
 current_host = socket.gethostname().upper().replace("-", "").replace("_", "")
 #current_host = "DC01"
 paexec_id = get_unique_id(pid, current_host)
-exe = "powershell.exe"
-#arguments = "/c echo hello world, my name is Jordan."
+exe = "cmd.exe"
+arguments = "/c echo hello world, my name is Jordan."
 #arguments = "Write-Host hello world; Start-Sleep -Seconds 10; Write-Host another hello; Write-Error hell"
-arguments = "Write-Host hello world; Start-Sleep -Seconds 5; Write-Host another hello; Write-Error hell"
+#arguments = "Write-Host hello world; Start-Sleep -Seconds 5; Write-Host another hello; Write-Error hell"
 
 svc_name = "PAExec-%d-%s" % (pid, current_host)
 
@@ -133,11 +131,11 @@ exe_path = "%s.exe" % svc_name
 # Setup SMB connection and session
 guid = uuid.uuid4()
 
-connection = Connection(guid, server, port, require_signing=True)
+connection = Connection(guid, server, port)
 try:
     connection.connect()
 
-    session = Session(connection, username, password, require_encryption=False)
+    session = Session(connection, username, password)
     session.connect()
 
     # open the service manager
@@ -371,9 +369,8 @@ try:
     paexec.close(False)
     tree_admin.disconnect()
 finally:
-    connection.disconnect()
+    connection.disconnect(True)
 
-time.sleep(2)
 print("RC: %d" % rc['return_code'].get_value())
 print("STDOUT:\n%s" % stdout.decode('utf-8'))
 print("STDERR:\n%s" % stderr.decode('utf-8'))
