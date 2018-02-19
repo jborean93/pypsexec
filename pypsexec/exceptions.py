@@ -1,6 +1,10 @@
 import struct
 
 
+class PypsexecException(Exception):
+    pass
+
+
 class PAExecException(Exception):
 
     @property

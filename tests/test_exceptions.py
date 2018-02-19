@@ -1,6 +1,15 @@
 import pytest
 
-from pypsexec.exceptions import PAExecException, PDUException, SCMRException
+from pypsexec.exceptions import PAExecException, PDUException, \
+    PypsexecException, SCMRException
+
+
+class TestPypsexecException(object):
+
+    def test_throw_pypsexec_exception(self):
+        with pytest.raises(PypsexecException) as exc:
+            raise PypsexecException("hi")
+        assert str(exc.value) == "hi"
 
 
 class TestPAExecException(object):

@@ -11,6 +11,7 @@ from smbprotocol.open import CreateDisposition, CreateOptions, \
 from smbprotocol.session import Session
 from smbprotocol.tree import TreeConnect
 
+from pypsexec.exceptions import PypsexecException
 from pypsexec.paexec import PAEXEC_DATA, PAExecMsg, PAExecMsgId, \
     PAExecReturnBuffer, PAExecSettingsBuffer, PAExecSettingsMsg, \
     PAExecStartBuffer, ProcessPriority, get_unique_id
@@ -36,15 +37,15 @@ class Client(object):
         self.session = Session(self.connection, username, password,
                                require_encryption=encrypt)
 
-        self._service_name = "PAExec-%d-%s" % (self.pid, self.current_host)
-        self._exe_file = "%s.exe" % self._service_name
+        service_name = "PAExec-%d-%s" % (self.pid, self.current_host)
+        self._exe_file = "%s.exe" % service_name
         self._stdout_pipe_name = "PaExecOut%s%d"\
                                  % (self.current_host, self.pid)
         self._stderr_pipe_name = "PaExecErr%s%d"\
                                  % (self.current_host, self.pid)
         self._stdin_pipe_name = "PaExecIn%s%d" % (self.current_host, self.pid)
         self._unique_id = get_unique_id(self.pid, self.current_host)
-        self._service = Service(self._service_name, self.session)
+        self._service = Service(service_name, self.session)
 
     def connect(self):
         self.connection.connect()
@@ -79,7 +80,7 @@ class Client(object):
         # create the PAExec service and start it
         self._service.open()
         service_path = r'"%SystemRoot%\{0}" -service'.format(self._exe_file)
-        self._service.create(self._service_name, service_path)
+        self._service.create(service_path)
 
     def remove_service(self):
         # Stops/removes the PAExec service and removes the executable
@@ -105,7 +106,7 @@ class Client(object):
     def run_executable(self, executable, arguments=None, processors=None,
                        async=False, load_profile=True,
                        session_to_interact_with=0, interactive=False,
-                       run_elevated=True, run_limited=False, username=None,
+                       run_elevated=False, run_limited=False, username=None,
                        password=None, use_system_account=False,
                        working_dir=None, show_ui_on_win_logon=False,
                        priority=ProcessPriority.NORMAL_PRIORITY_CLASS,
@@ -138,9 +139,10 @@ class Client(object):
         :param interactive: (Bool) Whether to run on an interative session or
             not, default is False. The stdout and stderr will be None
         :param run_elevated: (Bool) Whether to run as an elevated process or
-            not, default is True
+            not, default is False (This only applies when username is supplied)
         :param run_limited: (Bool) Whether to run as a limited user context,
-            admin rights are removed, or not, default is False
+            admin rights are removed, or not, default is False (This only
+            applied when username is applied)
         :param username: (String) The username to run the process as, if not
             set then either the SMB Session account is used or
             NT AUTHORITY\SYSTEM (use_system_account=True) is used
@@ -164,8 +166,13 @@ class Client(object):
         :return: Tuple(stdout, stderr, rc)
             stdout: (Bytes) The stdout as a byte string from the process
             stderr: (Bytes) The stderr as a byte string from the process
-            rc: (Int) The return code of the process
+            rc: (Int) The return code of the process (The pid of the async
+                process when async=True)
         """
+        if run_elevated and run_limited:
+            raise PypsexecException("Both run_elevated and run_limited are "
+                                    "set, only 1 of these can be true")
+
         # ensure the service is started and running
         self._service.start()
 

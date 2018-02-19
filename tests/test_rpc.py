@@ -682,7 +682,6 @@ class TestResponsePDU(object):
                    b"\x00" \
                    b"\x01\x02\x03\x04"
         actual = message.pack()
-        print(str(message))
         assert len(message) == 28
         assert actual == expected
 

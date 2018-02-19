@@ -9,6 +9,7 @@ from smbprotocol.ioctl import CtlCode, IOCTLFlags, SMB2IOCTLRequest, \
 from smbprotocol.open import CreateDisposition, CreateOptions, \
     FilePipePrinterAccessMask, ImpersonationLevel, ShareAccess
 from smbprotocol.open import Open
+from smbprotocol.structure import IntField, EnumField, FlagField, Structure
 from smbprotocol.tree import TreeConnect
 
 from pypsexec.exceptions import SCMRException
@@ -137,38 +138,34 @@ class ControlsAccepted(object):
     SERVICE_ACCEPT_TRIGGEREVENT = 0x00000400
 
 
-class ServiceStatus(object):
+class ServiceStatus(Structure):
+    """
+    [MS-SCMR] 2.2.47 SERVICE_STATUS
+    https://msdn.microsoft.com/en-us/library/cc245911.aspx
+
+    Defines Information about a service
+    """
 
     def __init__(self):
-        """
-        https://msdn.microsoft.com/en-us/library/cc245911.aspx
-        """
-        self.service_type = None
-        self.current_state = None
-        self.controls_accepted = None
-        self.win32_exit_code = None
-        self.service_specified_exit_code = None
-        self.check_point = None
-        self.wait_hint = None
-
-    def pack(self):
-        bytes = struct.pack("<i", self.service_type)
-        bytes += struct.pack("<i", self.current_state)
-        bytes += struct.pack("<i", self.controls_accepted)
-        bytes += struct.pack("<i", self.win32_exit_code)
-        bytes += struct.pack("<i", self.service_specified_exit_code)
-        bytes += struct.pack("<i", self.check_point)
-        bytes += struct.pack("<i", self.wait_hint)
-        return bytes
-
-    def unpack(self, data):
-        self.service_type = struct.unpack("<i", data[0:4])[0]
-        self.current_state = struct.unpack("<i", data[4:8])[0]
-        self.controls_accepted = struct.unpack("<i", data[8:12])[0]
-        self.win32_exit_code = struct.unpack("<i", data[12:16])[0]
-        self.service_specified_exit_code = struct.unpack("<i", data[16:20])[0]
-        self.check_point = struct.unpack("<i", data[20:24])[0]
-        self.wait_hint = struct.unpack("<i", data[24:28])[0]
+        self.fields = OrderedDict([
+            ('service_type', EnumField(
+                size=4,
+                enum_type=ServiceType
+            )),
+            ('current_state', EnumField(
+                size=4,
+                enum_type=CurrentState
+            )),
+            ('controls_accepted', FlagField(
+                size=4,
+                flag_type=ControlsAccepted
+            )),
+            ('win32_exit_code', IntField(size=4)),
+            ('service_specified_exit_code', IntField(size=4)),
+            ('check_point', IntField(size=4)),
+            ('wait_hint', IntField(size=4))
+        ])
+        super(ServiceStatus, self).__init__()
 
 
 class Service(object):
@@ -261,7 +258,7 @@ class Service(object):
             CurrentState.SERVICE_CONTINUE_PENDING: "continue_pending",
             CurrentState.SERVICE_PAUSE_PENDING: "pause_pending",
             CurrentState.SERVICE_PAUSED: "paused"
-        }[service_status.current_state]
+        }[service_status['current_state'].get_value()]
 
     def start(self):
         if self.status == "running":
@@ -276,11 +273,11 @@ class Service(object):
                                    ControlCode.SERVICE_CONTROL_STOP)
         self.refresh()
 
-    def create(self, name, path):
+    def create(self, path):
         self._handle = self._scmr.create_service_wow64_w(
             self._scmr_handle,
-            name,
-            name,
+            self.name,
+            self.name,
             DesiredAccess.SERVICE_QUERY_STATUS | DesiredAccess.SERVICE_START |
             DesiredAccess.SERVICE_STOP | DesiredAccess.DELETE,
             ServiceType.SERVICE_WIN32_OWN_PROCESS,
@@ -424,7 +421,7 @@ class SCMRApi(object):
 
         res = self._invoke(opnum, data)
         return_code = struct.unpack("<i", res[-4:])[0]
-        self._parse_error(return_code, errors, "RQueryServiceStatus")
+        self._parse_error(return_code, errors, "RControlService")
 
         service_status = ServiceStatus()
         service_status.unpack(res[:-4])
@@ -559,15 +556,11 @@ class SCMRApi(object):
         }
         opnum = 45
 
-        if service_name is None:
-            raise ValueError("Service name must be supplied when creating a "
-                             "new service")
-
         data = server_handle
         data += self._marshal_string(service_name)
-        data += b"\x00" * 2  # why?
+        data += b"\x00" * 2  # why - maybe a null terminator?
         data += self._marshal_string(display_name, True)
-        data += b"\x00" * 2  # why again?
+        data += b"\x00" * 2  # why again - maybe a null terminator?
         data += struct.pack("<i", desired_access)
         data += struct.pack("<i", service_type)
         data += struct.pack("<i", start_type)
@@ -594,7 +587,7 @@ class SCMRApi(object):
         service_handle = res[4:24]
         return_code = struct.unpack("<i", res[24:])[0]
         self._parse_error(return_code, errors, "RCreateServiceWOW64W")
-        return (tag_id, service_handle)
+        return tag_id, service_handle
 
     def _invoke(self, opnum, data):
         req = RequestPDU()
