@@ -43,3 +43,7 @@ class SCMRException(Exception):
 
     def __str__(self):
         return self.message
+
+
+class PDUException(Exception):
+    pass

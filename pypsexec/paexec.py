@@ -1,30 +1,16 @@
-import binascii
 import os
 import struct
 
-from smbprotocol.structure import BytesField, EnumField, \
+from smbprotocol.structure import BoolField, BytesField, EnumField, \
     IntField, ListField, Structure, StructureField, DateTimeField, \
     Field
 
 try:
     from collections import OrderedDict
-except ImportError:
+except ImportError:  # pragma: no cover
     from ordereddict import OrderedDict
 
 from pypsexec.exceptions import PAExecException
-
-
-def paexec_out_stream(buffer_size=4096):
-    """
-    Creates a generator to read the PAExec executable data as a binary stream.
-
-    :param buffer_size: The size of buffer yielded
-    :return: (bytes, offset) - the bytes and the offset of the byte data
-    """
-    payload_bytes = binascii.unhexlify(PAEXEC_DATA)
-    byte_count = len(payload_bytes)
-    for i in range(0, byte_count, buffer_size):
-        yield payload_bytes[i:i + buffer_size], i
 
 
 def get_unique_id(pid, computer_name):
@@ -74,39 +60,6 @@ class ProcessPriority(object):
     IDLE_PRIORITY_CLASS = 0x00000040
     NORMAL_PRIORITY_CLASS = 0x00000020
     REALTIME_PRIORITY_CLASS = 0x00000100
-
-
-class BoolField(Field):
-
-    def __init__(self, **kwargs):
-        """
-        Used to store a boolean value in 1 byte. b"\x00" is False while b"\x01"
-        is True.
-
-        :param kwargs: Any other kwarg to be sent to Field()
-        """
-        super(BoolField, self).__init__(size=1, **kwargs)
-
-    def _pack_value(self, value):
-        return b"\x01" if value else b"\x00"
-
-    def _parse_value(self, value):
-        if value is None:
-            bool_value = False
-        elif isinstance(value, bool):
-            bool_value = value
-        elif isinstance(value, bytes):
-            bool_value = value == b"\x01"
-        else:
-            raise TypeError("Cannot parse value for field %s of type %s to a "
-                            "bool" % (self.name, type(value).__name__))
-        return bool_value
-
-    def _get_packed_size(self):
-        return 1
-
-    def _to_string(self):
-        return str(self._get_calculated_value(self.value))
 
 
 class PAExecMsg(Structure):
@@ -182,7 +135,7 @@ class PAExecSettingsMsg(Structure):
 
         # the id, length and buffer itself is xor'd
         input_data = self['unique_id'].pack() + self['buffer_len'].pack() + \
-                     self['buffer'].pack()
+            self['buffer'].pack()
         buffer = self._xor_data(xor_value, input_data)
 
         # build the final data structure
@@ -254,15 +207,15 @@ class PAExecSettingsBuffer(Structure):
                 list_count=lambda s: s['num_processors'].get_value(),
                 list_type=IntField(size=4)
             )),
-            ('copy_files', BoolField()),
-            ('force_copy', BoolField()),
-            ('copy_if_newer_or_higher_ver', BoolField()),
-            ('dont_wait_for_terminate', BoolField()),
-            ('dont_load_profile', BoolField()),
+            ('copy_files', BoolField(size=1)),
+            ('force_copy', BoolField(size=1)),
+            ('copy_if_newer_or_higher_ver', BoolField(size=1)),
+            ('async', BoolField(size=1)),
+            ('dont_load_profile', BoolField(size=1)),
             ('session_to_interact_with', IntField(size=4)),
-            ('interactive', BoolField()),
-            ('run_elevated', BoolField()),
-            ('run_limited', BoolField()),
+            ('interactive', BoolField(size=1)),
+            ('run_elevated', BoolField(size=1)),
+            ('run_limited', BoolField(size=1)),
             ('password_len', IntField(
                 size=4,
                 default=lambda s: int(len(s['password']) / 2)
@@ -277,7 +230,7 @@ class PAExecSettingsBuffer(Structure):
             ('username', BytesField(
                 size=lambda s: s['username_len'].get_value() * 2
             )),
-            ('use_system_account', BoolField()),
+            ('use_system_account', BoolField(size=1)),
             ('working_dir_len', IntField(
                 size=4,
                 default=lambda s: int(len(s['working_dir']) / 2)
@@ -285,7 +238,7 @@ class PAExecSettingsBuffer(Structure):
             ('working_dir', BytesField(
                 size=lambda s: s['working_dir_len'].get_value() * 2
             )),
-            ('show_ui_on_win_logon', BoolField()),
+            ('show_ui_on_win_logon', BoolField(size=1)),
             ('priority', EnumField(
                 size=4,
                 default=ProcessPriority.NORMAL_PRIORITY_CLASS,
@@ -305,8 +258,8 @@ class PAExecSettingsBuffer(Structure):
             ('arguments', BytesField(
                 size=lambda s: s['arguments_len'].get_value() * 2
             )),
-            ('disable_file_redirection', BoolField()),
-            ('enable_debug', BoolField()),
+            ('disable_file_redirection', BoolField(size=1)),
+            ('enable_debug', BoolField(size=1)),
             ('remote_log_path_len', IntField(
                 size=4,
                 default=lambda s: int(len(s['remote_log_path']) / 2)
@@ -314,7 +267,7 @@ class PAExecSettingsBuffer(Structure):
             ('remote_log_path', BytesField(
                 size=lambda s: s['remote_log_path_len'].get_value() * 2
             )),
-            ('no_delete', BoolField()),
+            ('no_delete', BoolField(size=1)),
             ('src_dir_len', IntField(
                 size=4,
                 default=lambda s: int(len(s['src_dir']) / 2)
@@ -391,7 +344,7 @@ class PAExecFileInfo(Structure):
             ('filename', BytesField(
                 size=lambda s: s['filename_len'].get_value() * 2
             )),
-            ('file_last_write', DateTimeField()),
+            ('file_last_write', DateTimeField(size=8)),
             ('file_version_ls', IntField(size=4)),
             ('file_version_ms', IntField(size=4)),
             ('copy_file', BoolField())

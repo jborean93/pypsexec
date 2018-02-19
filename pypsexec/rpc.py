@@ -1,14 +1,25 @@
+import struct
+
 from smbprotocol.structure import BytesField, EnumField, \
     FlagField, IntField, ListField, Structure, StructureField, UuidField
 
+from pypsexec.exceptions import PDUException
+
 try:
     from collections import OrderedDict
-except ImportError:
+except ImportError:  # pragma: no cover
     from ordereddict import OrderedDict
 
 
 def parse_pdu(data):
-    type = data[2]  # third element is PType
+    """
+    Converts the raw byte string of PDU data into a *PDU() structure. If the
+    type is invalid or unknown to pypsexec it will throw a PDUException.
+
+    :param data: The byte string returned in the buffer of the IOCTL response
+    :return: *PDU() structure that is dependent on the type being parsed
+    """
+    type = struct.unpack("<B", data[2:3])[0]  # third element is PType
     known_types = {
         PType.REQUEST: RequestPDU(),
         PType.RESPONSE: ResponsePDU(),
@@ -20,7 +31,7 @@ def parse_pdu(data):
 
     pdu = known_types.get(type, None)
     if not pdu:
-        raise Exception("Cannot parse PDU of type %s" % type)
+        raise PDUException("Cannot parse PDU of type %s" % type)
     pdu.unpack(data)
     return pdu
 
@@ -70,11 +81,10 @@ class PType(object):
 
 
 class IntegerCharacterRepresentation(object):
-    """
-    No flags set means ASCII/Big Endian, this allows you to override it
-    """
-    EBCDIC = 0x01
-    LITTLE_ENDIAN = 0x10
+    ASCII_BIG_ENDIAN = 0x00
+    ASCII_LITTLE_ENDIAN = 0x10
+    EBCDIC_BIG_ENDIAN = 0x01
+    EBCDIC_LITTLE_ENDIAN = 0x11
 
 
 class FloatingPointRepresentation(object):
@@ -185,14 +195,15 @@ class DataRepresentationFormat(Structure):
 
     def __init__(self):
         self.fields = OrderedDict([
-            ('integer_character', FlagField(
+            ('integer_character', EnumField(
                 size=1,
-                flag_type=IntegerCharacterRepresentation,
-                default=b"\x00"  # ASCII/Big-Endian
+                enum_type=IntegerCharacterRepresentation,
+                default=IntegerCharacterRepresentation.ASCII_LITTLE_ENDIAN
             )),
             ('floating_point', EnumField(
                 size=1,
-                enum_type=FloatingPointRepresentation
+                enum_type=FloatingPointRepresentation,
+                default=FloatingPointRepresentation.IEEE
             )),
             ('reserved1', IntField(size=1)),
             ('reserved2', IntField(size=1))
@@ -335,7 +346,13 @@ class BindPDU(Structure):
         super(BindPDU, self).__init__()
 
     def _unpack_context_elems(self, structure, data):
-        raise NotImplementedError()
+        context_elems = []
+        while data != b"":
+            context_elem = ContextElement()
+            data = context_elem.unpack(data)
+            context_elems.append(context_elem)
+
+        return context_elems
 
 
 class BindAckPDU(Structure):
@@ -379,16 +396,21 @@ class BindAckPDU(Structure):
             ('max_recv_frag', IntField(size=2)),
             ('assoc_group_id', IntField(size=4)),
             # port_any_t
-            ('sec_addr_len', IntField(size=2)),
+            ('sec_addr_len', IntField(
+                size=2,
+                default=lambda s: len(s['sec_addr'])
+            )),
             ('sec_addr', BytesField(
                 size=lambda s: s['sec_addr_len'].get_value()
             )),
             ('pad2', BytesField(
-                size=lambda s: self._pad2_size(s)
+                size=lambda s: self._pad2_size(s),
+                default=lambda s: b"\x00" * self._pad2_size(s)
             )),
             # p_result_list_t
             ('n_results', IntField(
                 size=1,
+                default=lambda s: len(s['results'].get_value())
             )),
             ('reserved', IntField(size=1)),
             ('reserved2', IntField(size=2)),
@@ -406,14 +428,10 @@ class BindAckPDU(Structure):
         super(BindAckPDU, self).__init__()
 
     def _pad2_size(self, structure):
-        sec_addr_size = len(structure['sec_addr_len']) + \
-                        len(structure['sec_addr'])
+        sec_addr_size = 2 + len(structure['sec_addr'])
 
         mod = sec_addr_size % 8
-        if sec_addr_size > 8:
-            return 8 - mod
-        else:
-            return mod
+        return 8 - mod if sec_addr_size > 8 else mod
 
 
 class BindNakPDU(Structure):
@@ -453,7 +471,10 @@ class BindNakPDU(Structure):
                 enum_type=BindNakReason
             )),
             # versions
-            ('n_protocols', IntField(size=1)),
+            ('n_protocols', IntField(
+                size=1,
+                default=lambda s: len(s['p_protocols'].get_value())
+            )),
             ('p_protocols', ListField(
                 list_type=IntField(size=2),
                 list_count=lambda s: s['n_protocols'].get_value()

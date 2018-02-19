@@ -2,11 +2,7 @@ import logging
 import struct
 import uuid
 
-from pypsexec.exceptions import SCMRException
-from pypsexec.rpc import BindAckPDU, BindPDU, ContextElement, \
-    DataRepresentationFormat, IntegerCharacterRepresentation, parse_pdu, \
-    PFlags, RequestPDU, ResponsePDU, SyntaxIdElement
-from smbprotocol.connection import Commands, NtStatus
+from smbprotocol.connection import NtStatus
 from smbprotocol.exceptions import SMBResponseException
 from smbprotocol.ioctl import CtlCode, IOCTLFlags, SMB2IOCTLRequest, \
     SMB2IOCTLResponse
@@ -15,9 +11,14 @@ from smbprotocol.open import CreateDisposition, CreateOptions, \
 from smbprotocol.open import Open
 from smbprotocol.tree import TreeConnect
 
+from pypsexec.exceptions import SCMRException
+from pypsexec.rpc import BindAckPDU, BindPDU, ContextElement, \
+    DataRepresentationFormat, PDUException, parse_pdu, \
+    PFlags, RequestPDU, ResponsePDU, SyntaxIdElement
+
 try:
     from collections import OrderedDict
-except ImportError:
+except ImportError:  # pragma: no cover
     from ordereddict import OrderedDict
 
 log = logging.getLogger(__name__)
@@ -170,6 +171,136 @@ class ServiceStatus(object):
         self.wait_hint = struct.unpack("<i", data[24:28])[0]
 
 
+class Service(object):
+
+    def __init__(self, name, smb_session):
+        """
+        Higher-level interface over SCMR to manage Windows services. This is
+        customised for the PAExec service to really just be used in that
+        scenario.
+
+        :param name: The name of the service
+        :param smb_session: A connected SMB Session that can be used to connect
+            to the IPC$ tree.
+        """
+        self.name = name
+        self.smb_session = smb_session
+        self.exists = None
+        self.status = None
+
+        self._handle = None
+        self._scmr = None
+        self._scmr_handle = None
+
+    def open(self):
+        if self._handle:
+            return
+
+        # connect to the SCMR Endpoint
+        self._scmr = SCMRApi(self.smb_session)
+        self._scmr.open()
+        self._scmr_handle = self._scmr.open_sc_manager_w(
+            self.smb_session.connection.server_name,
+            None,
+            DesiredAccess.SC_MANAGER_CONNECT |
+            DesiredAccess.SC_MANAGER_CREATE_SERVICE |
+            DesiredAccess.SC_MANAGER_ENUMERATE_SERVICE
+        )
+
+        # connect to the desired service in question
+        desired_access = DesiredAccess.SERVICE_QUERY_STATUS | \
+            DesiredAccess.SERVICE_START | \
+            DesiredAccess.SERVICE_STOP | \
+            DesiredAccess.DELETE
+        try:
+            self._handle = self._scmr.open_service_w(self._scmr_handle,
+                                                     self.name,
+                                                     desired_access)
+        except SCMRException as exc:
+            # 1060 is service does not exist
+            if exc.return_code == 1060:
+                self.exists = False
+            else:
+                raise exc
+        else:
+            self.exists = True
+            self.refresh()
+
+    def close(self):
+        if self._handle:
+            self._scmr.close_service_handle_w(self._handle)
+            self.exists = None
+            self.status = None
+            self._handle = None
+
+        if self._scmr_handle:
+            self._scmr.close_service_handle_w(self._scmr_handle)
+            self._scmr_handle = None
+
+        if self._scmr:
+            self._scmr.close()
+            self._scmr = False
+
+    def refresh(self):
+        """
+        Refreshes the service details, currently only exists and status
+        are set.
+        """
+        if not self._handle:
+            self.open()
+
+        if not self.exists:
+            return
+
+        service_status = self._scmr.query_service_status(self._handle)
+        self.status = {
+            CurrentState.SERVICE_STOPPED: "stopped",
+            CurrentState.SERVICE_START_PENDING: "start_pending",
+            CurrentState.SERVICE_STOP_PENDING: "stop_pending",
+            CurrentState.SERVICE_RUNNING: "running",
+            CurrentState.SERVICE_CONTINUE_PENDING: "continue_pending",
+            CurrentState.SERVICE_PAUSE_PENDING: "pause_pending",
+            CurrentState.SERVICE_PAUSED: "paused"
+        }[service_status.current_state]
+
+    def start(self):
+        if self.status == "running":
+            return
+        self._scmr.start_service_w(self._handle)
+        self.refresh()
+
+    def stop(self):
+        if self.status == "stopped":
+            return
+        self._scmr.control_service(self._handle,
+                                   ControlCode.SERVICE_CONTROL_STOP)
+        self.refresh()
+
+    def create(self, name, path):
+        self._handle = self._scmr.create_service_wow64_w(
+            self._scmr_handle,
+            name,
+            name,
+            DesiredAccess.SERVICE_QUERY_STATUS | DesiredAccess.SERVICE_START |
+            DesiredAccess.SERVICE_STOP | DesiredAccess.DELETE,
+            ServiceType.SERVICE_WIN32_OWN_PROCESS,
+            StartType.SERVICE_DEMAND_START,
+            ErrorControl.SERVICE_ERROR_NORMAL,
+            path,
+            None,
+            0,
+            None,
+            None,
+            None
+        )[1]
+        self.exists = True
+
+    def delete(self):
+        self.stop()
+        self._scmr.delete_service(self._handle)
+        self.close()
+
+
 class SCMRApi(object):
 
     def __init__(self, smb_session):
@@ -196,9 +327,6 @@ class SCMRApi(object):
         bind['pfx_flags'].set_flag(PFlags.PFC_FIRST_FRAG)
         bind['pfx_flags'].set_flag(PFlags.PFC_LAST_FRAG)
         bind['packed_drep'] = DataRepresentationFormat()
-        bind['packed_drep']['integer_character'].set_flag(
-            IntegerCharacterRepresentation.LITTLE_ENDIAN
-        )
         bind['call_id'] = self.call_id
         self.call_id += 1
 
@@ -250,14 +378,14 @@ class SCMRApi(object):
         bind_data = self.handle.read(0, 1024)
         bind_result = parse_pdu(bind_data)
         if not isinstance(bind_result, BindAckPDU):
-            raise Exception("Expecting BindAckPDU for initial bind result but "
-                            "got: %s" % str(bind_result))
+            raise PDUException("Expecting BindAckPDU for initial bind result "
+                               "but got: %s" % str(bind_result))
 
     def close(self):
         self.handle.close(False)
         self.tree.disconnect()
 
-    ### SCMR Functions below
+    # SCMR Functions below
 
     def close_service_handle_w(self, handle):
         # https://msdn.microsoft.com/en-us/library/cc245920.aspx
@@ -432,8 +560,8 @@ class SCMRApi(object):
         opnum = 45
 
         if service_name is None:
-            raise Exception("Service name must be supplied when creating a "
-                            "new service")
+            raise ValueError("Service name must be supplied when creating a "
+                             "new service")
 
         data = server_handle
         data += self._marshal_string(service_name)
@@ -473,9 +601,6 @@ class SCMRApi(object):
         req['pfx_flags'].set_flag(PFlags.PFC_FIRST_FRAG)
         req['pfx_flags'].set_flag(PFlags.PFC_LAST_FRAG)
         req['packed_drep'] = DataRepresentationFormat()
-        req['packed_drep']['integer_character'].set_flag(
-            IntegerCharacterRepresentation.LITTLE_ENDIAN
-        )
         req['call_id'] = self.call_id
         self.call_id += 1
 
@@ -489,15 +614,14 @@ class SCMRApi(object):
         ioctl_request['flags'] = IOCTLFlags.SMB2_0_IOCTL_IS_FSCTL
         ioctl_request['buffer'] = req
 
-        header = self.tree.session.connection.send(ioctl_request,
-                                                   Commands.SMB2_IOCTL,
-                                                   self.tree.session,
-                                                   self.tree)
+        session_id = self.tree.session.session_id
+        tree_id = self.tree.tree_connect_id
+        request = self.tree.session.connection.send(ioctl_request,
+                                                    sid=session_id,
+                                                    tid=tree_id)
         while True:
             try:
-                resp = self.tree.session.connection.receive(
-                    header['message_id'].get_value()
-                )
+                resp = self.tree.session.connection.receive(request)
             except SMBResponseException as exc:
                 # try again if the status is pending
                 if exc.status != NtStatus.STATUS_PENDING:
@@ -510,8 +634,8 @@ class SCMRApi(object):
 
         pdu_resp = parse_pdu(ioctl_resp['buffer'].get_value())
         if not isinstance(pdu_resp, ResponsePDU):
-            raise Exception("Expecting ResponsePDU for opnum %d response but "
-                            "got: %s" % (opnum, str(pdu_resp)))
+            raise PDUException("Expecting ResponsePDU for opnum %d response "
+                               "but got: %s" % (opnum, str(pdu_resp)))
 
         return pdu_resp['stub_data'].get_value()
 
