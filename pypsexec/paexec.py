@@ -2,8 +2,7 @@ import os
 import struct
 
 from smbprotocol.structure import BoolField, BytesField, EnumField, \
-    IntField, ListField, Structure, StructureField, DateTimeField, \
-    Field
+    IntField, ListField, Structure, StructureField, DateTimeField
 
 try:
     from collections import OrderedDict
@@ -161,6 +160,7 @@ class PAExecSettingsMsg(Structure):
         self['unique_id'] = unique_id
         self['buffer_len'] = buffer_len
         self['buffer'] = structure_a
+        return b""
 
     def _xor_data(self, xor_value, data):
         buffer = b""
@@ -171,7 +171,7 @@ class PAExecSettingsMsg(Structure):
             xored_value = int_value ^ xor_value
             new_bytes = struct.pack("<L", xored_value)
             buffer += new_bytes[:1]
-            next_bytes = new_bytes[1:] + struct.pack("<B", data[i + 4])
+            next_bytes = new_bytes[1:] + data[i + 4:i + 5]
             xor_value += 3
 
         int_value = struct.unpack("<L", next_bytes)[0]
@@ -204,6 +204,7 @@ class PAExecSettingsBuffer(Structure):
                 default=lambda s: len(s['processors'].get_value())
             )),
             ('processors', ListField(
+                size=lambda s: s['num_processors'].get_value() * 4,
                 list_count=lambda s: s['num_processors'].get_value(),
                 list_type=IntField(size=4)
             )),
@@ -303,7 +304,6 @@ class PAExecSettingsBuffer(Structure):
                 self._unpack_file_list(s, d, 'num_dest_files')
             )),
             ('timeout_seconds', IntField(size=4))
-
         ])
         super(PAExecSettingsBuffer, self).__init__()
 
@@ -347,7 +347,7 @@ class PAExecFileInfo(Structure):
             ('file_last_write', DateTimeField(size=8)),
             ('file_version_ls', IntField(size=4)),
             ('file_version_ms', IntField(size=4)),
-            ('copy_file', BoolField())
+            ('copy_file', BoolField(size=1))
         ])
         super(PAExecFileInfo, self).__init__()
 
