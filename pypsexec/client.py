@@ -29,7 +29,8 @@ log = logging.getLogger(__name__)
 
 class Client(object):
 
-    def __init__(self, server, username=None, password=None, port=445, encrypt=True):
+    def __init__(self, server, username=None, password=None, port=445,
+                 encrypt=True):
         self.server = server
         self.port = port
         self.pid = os.getpid()
