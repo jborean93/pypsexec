@@ -76,12 +76,43 @@ XOR scramble of the settings data but it is not as good as SMB encryption.
 * Python 2.7, 2.7, 3.4-3.6
 * [smbprotocol](https://github.com/jborean93/smbprotocol)
 
-To install pypsexec, simple run
+To install pypsexec, simply run
 
 `pip install pypsexec`
 
 This will download the required packages that are required and get your
 Python environment ready to do.
+
+Out of the box, pypsexec supports authenticating to a Windows host with NTLM
+authentication but users in a domain environment can take advantage of Kerberos
+authentication as well for added security. Currently the Windows implementation
+of the smbprotocol does not support Kerberos auth but for other platforms you
+can add support by running
+
+```
+# for Debian/Ubuntu/etc:
+sudo apt-get install gcc python-dev libkrb5-dev
+pip install smbprotocol[kerberos]
+
+# for RHEL/CentOS/etc:
+sudo yum install gcc python-devel krb5-devel krb5-workstation python-devel
+pip install smbprotocol[kerberos]
+```
+
+From there to check that everything was installed correctly and the correct
+GSSAPI extensions are available on that host, run
+
+```
+try:
+    from gssapi.raw import inquire_sec_context_by_oid
+    print("python-gssapi extension is available")
+except ImportError as exc:
+    print("python-gssapi extension is not available: %s" % str(exc))
+```
+
+If it isn't available, then either a newer version of the system's gssapi
+implementation needs to be setup and python-gssapi compiled against that newer
+version.
 
 
 ## Remote Host Requirements
