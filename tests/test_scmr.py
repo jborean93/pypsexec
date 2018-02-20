@@ -171,7 +171,7 @@ class TestServiceFunctional(object):
         service.close()
 
     def test_open_service_existing(self, session):
-        service = Service("netlogon", session)
+        service = Service("LanmanServer", session)
         service.open()
         assert service.exists
         assert service.status == "running"
@@ -192,7 +192,7 @@ class TestServiceFunctional(object):
                                  "Code: 123, Msg: ERROR_INVALID_NAME"
 
     def test_refresh_service_without_an_open(self, session):
-        service = Service("netlogon", session)
+        service = Service("LanmanServer", session)
         assert service.exists is None
         assert service.status is None
         service.refresh()
@@ -209,7 +209,7 @@ class TestServiceFunctional(object):
         service.close()
 
     def test_start_an_already_started_service(self, session):
-        service = Service("netlogon", session)
+        service = Service("LanmanServer", session)
         service.open()
         assert service.status == "running"
         service.start()
