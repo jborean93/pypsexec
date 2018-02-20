@@ -1,3 +1,5 @@
+import binascii
+import logging
 import os
 import sys
 import threading
@@ -18,6 +20,8 @@ if sys.version[0] == '2':
     from Queue import Queue
 else:
     from queue import Queue
+
+log = logging.getLogger(__name__)
 
 
 class FSCTLPipeWait(Structure):
@@ -76,10 +80,15 @@ class _NamedPipe(threading.Thread):
         fsctl_data['name'] = self.name.encode('utf-16-le')
         wait_pipe['buffer'] = fsctl_data
 
+        log.info("Sending FSCTL_PIPE_WAIT for pipe %s" % self.name)
+        log.debug(str(wait_pipe))
         request = self.connection.send(wait_pipe, sid=self.sid, tid=self.tid)
+
+        log.info("Receiving FSCTL_PIPE_WAIT response for pipe: %s" % self.name)
         self.connection.receive(request)
 
         # now open the Pipe
+        log.info("Creating SMB Open for pipe: %s" % self.name)
         self.pipe.open(ImpersonationLevel.Impersonation,
                        self.ACCESS_MASK,
                        FileAttributes.FILE_ATTRIBUTE_NORMAL,
@@ -101,23 +110,37 @@ class InputPipe(_NamedPipe):
 
     def __init__(self, tree, name):
         self.close_bytes = os.urandom(16)
+        log.info("Initialising Input Named Pipe with the name: %s" % name)
+        log.debug("Shutdown bytes for input pipe: %s"
+                  % binascii.hexlify(self.close_bytes))
         super(InputPipe, self).__init__(tree, name)
 
     def run(self):
         try:
+            log.debug("Starting thread of Input Named Pipe: %s" % self.name)
             while True:
+                log.debug("Waiting for input for %s" % self.name)
                 input_data = self.pipe_buffer.get()
+                log.debug("Input for %s was found: %s"
+                          % (self.name, binascii.hexlify(input_data)))
                 if input_data == self.close_bytes:
+                    log.debug("Close bytes was received for input pipe: %s"
+                              % self.name)
                     break
 
+                log.debug("Writing bytes to Input Named Pipe: %s" % self.name)
                 self.pipe.write(input_data, 0, wait=True)
         finally:
+            log.debug("Closing SMB Open to Input Named Pipe: %s" % self.name)
             self.pipe.close(get_attributes=False)
+        log.debug("Input Named Pipe %s thread finished" % self.name)
 
     def close(self):
+        log.info("Closing Input Named Pipe: %s" % self.name)
+        log.debug("Send shutdown bytes to Input Named Pipe: %s" % self.name)
         self.pipe_buffer.put(self.close_bytes)
+        log.debug("Waiting for the pipe thread of %s to close" % self.name)
         self.join()
-        self.pipe.close()
 
 
 class OutputPipe(_NamedPipe):
@@ -129,36 +152,52 @@ class OutputPipe(_NamedPipe):
                   FilePipePrinterAccessMask.SYNCHRONIZE
 
     def __init__(self, tree, name):
+        log.info("Initialising Output Named Pipe with the name: %s" % name)
         super(OutputPipe, self).__init__(tree, name)
 
     def run(self):
         # read from the pipe and close it at the end
         try:
+            log.debug("Starting thread of Output Named Pipe: %s" % self.name)
             sent_first = False
             while True:
                 # get the read request and sent it so we can let the parent
                 # thread know it can continue before we are blocked by the read
                 read_msg, read_resp_func = self.pipe.read(0, 1024, send=False)
+                log.debug("Sending SMB Read request for Output Named Pipe: %s"
+                          % self.name)
                 request = self.connection.send(read_msg,
                                                sid=self.sid,
                                                tid=self.tid)
                 if not sent_first:
+                    log.debug("Sending data to parent thread saying the first "
+                              "read has been sent for Output Named Pipe: %s"
+                              % self.name)
                     self.pipe_buffer.put(None)
                     sent_first = True
 
                 try:
+                    log.debug("Reading SMB Read response for Output Named "
+                              "Pipe: %s" % self.name)
                     pipe_out = read_resp_func(request, wait=True)
+                    log.debug("Received SMB Read response for Output Named "
+                              "Pipe: %s" % self.name)
                     self.pipe_buffer.put(pipe_out)
                 except SMBResponseException as exc:
                     # if the error was the pipe was broken exit the loop
                     # otherwise the error is serious so throw it
                     if exc.status == NtStatus.STATUS_PIPE_BROKEN:
+                        log.debug("STATUS_PIPE_BROKEN received for Output "
+                                  "Named Pipe: %s, ending thread" % self.name)
                         break
                     else:
                         raise exc
         finally:
+            log.debug("Closing Output Named Pipe: %s" % self.name)
             self.pipe.close(get_attributes=False)
+        log.debug("Output Named Pipe %s thread finished" % self.name)
 
     def close(self):
+        log.info("Closing Output Named Pipe: %s" % self.name)
+        log.debug("Waiting for pipe thread of %s to close" % self.name)
         self.join()
-        self.pipe.close(False)

@@ -191,9 +191,12 @@ class Service(object):
 
     def open(self):
         if self._handle:
+            log.debug("Handle for service %s is already open" % self.name)
             return
 
         # connect to the SCMR Endpoint
+        log.info("Opening handle for SCMR on %s"
+                 % self.smb_session.connection.server_name)
         self._scmr = SCMRApi(self.smb_session)
         self._scmr.open()
         self._scmr_handle = self._scmr.open_sc_manager_w(
@@ -210,12 +213,15 @@ class Service(object):
             DesiredAccess.SERVICE_STOP | \
             DesiredAccess.DELETE
         try:
+            log.info("Opening handle for Service %s" % self.name)
             self._handle = self._scmr.open_service_w(self._scmr_handle,
                                                      self.name,
                                                      desired_access)
         except SCMRException as exc:
             # 1060 is service does not exist
             if exc.return_code == 1060:
+                log.debug("Could not open handle for service %s as it did "
+                          "not exist" % self.name)
                 self.exists = False
             else:
                 raise exc
@@ -225,16 +231,19 @@ class Service(object):
 
     def close(self):
         if self._handle:
+            log.info("Closing Service handle for service %s" % self.name)
             self._scmr.close_service_handle_w(self._handle)
             self.exists = None
             self.status = None
             self._handle = None
 
         if self._scmr_handle:
+            log.info("Closing SCMR handle")
             self._scmr.close_service_handle_w(self._scmr_handle)
             self._scmr_handle = None
 
         if self._scmr:
+            log.info("Closing bindings for SCMR")
             self._scmr.close()
             self._scmr = False
 
@@ -244,6 +253,8 @@ class Service(object):
         are set.
         """
         if not self._handle:
+            log.debug("Need to open handle to service %s before refreshing"
+                      % self.name)
             self.open()
 
         if not self.exists:
@@ -262,12 +273,16 @@ class Service(object):
 
     def start(self):
         if self.status == "running":
+            log.debug("No need to start the service %s as it is already "
+                      "started" % self.name)
             return
         self._scmr.start_service_w(self._handle)
         self.refresh()
 
     def stop(self):
         if self.status == "stopped":
+            log.debug("No need to stop the servie %s as it is already stopped"
+                      % self.name)
             return
         self._scmr.control_service(self._handle,
                                    ControlCode.SERVICE_CONTROL_STOP)
@@ -308,7 +323,9 @@ class SCMRApi(object):
         self.call_id = 0
 
     def open(self):
+        log.debug("Connecting to SMB Tree %s for SCMR" % self.tree.share_name)
         self.tree.connect()
+        log.debug("Opening handle to svcctl pipe")
         self.handle.open(ImpersonationLevel.Impersonation,
                          FilePipePrinterAccessMask.GENERIC_READ |
                          FilePipePrinterAccessMask.GENERIC_WRITE,
@@ -371,14 +388,20 @@ class SCMRApi(object):
         ]
         bind_data = bind.pack()
 
+        log.info("Sending bind request to svcctl")
+        log.debug(str(bind))
         self.handle.write(bind_data)
+
+        log.info("Receiving bind result for svcctl")
         bind_data = self.handle.read(0, 1024)
         bind_result = parse_pdu(bind_data)
+        log.debug(str(bind_result))
         if not isinstance(bind_result, BindAckPDU):
             raise PDUException("Expecting BindAckPDU for initial bind result "
                                "but got: %s" % str(bind_result))
 
     def close(self):
+        log.info("Closing bind to svcctl")
         self.handle.close(False)
         self.tree.disconnect()
 
@@ -394,7 +417,7 @@ class SCMRApi(object):
         }
         opnum = 0
 
-        res = self._invoke(opnum, handle)
+        res = self._invoke("RCloseServiceHandleW", opnum, handle)
         handle = res[:20]
         return_code = struct.unpack("<i", res[20:])[0]
         self._parse_error(return_code, errors, "RCloseServiceHandleW")
@@ -419,7 +442,7 @@ class SCMRApi(object):
         data = service_handle
         data += struct.pack("<i", control_code)
 
-        res = self._invoke(opnum, data)
+        res = self._invoke("RControlService", opnum, data)
         return_code = struct.unpack("<i", res[-4:])[0]
         self._parse_error(return_code, errors, "RControlService")
 
@@ -439,7 +462,7 @@ class SCMRApi(object):
         }
         opnum = 2
 
-        res = self._invoke(opnum, service_handle)
+        res = self._invoke("RDeleteService", opnum, service_handle)
         return_code = struct.unpack("<i", res)[0]
         self._parse_error(return_code, errors, "RDeleteService")
 
@@ -454,7 +477,7 @@ class SCMRApi(object):
         }
         opnum = 6
 
-        res = self._invoke(opnum, service_handle)
+        res = self._invoke("RQueryServiceStatus", opnum, service_handle)
         return_code = struct.unpack("<i", res[-4:])[0]
         self._parse_error(return_code, errors, "RQueryServiceStatus")
 
@@ -478,7 +501,7 @@ class SCMRApi(object):
         data += self._marshal_string(database_name)
         data += struct.pack("<i", desired_access)
 
-        res = self._invoke(opnum, data)
+        res = self._invoke("ROpenSCManagerW", opnum, data)
         server_handle = res[:20]
         return_code = struct.unpack("<i", res[20:])[0]
         self._parse_error(return_code, errors, "ROpenSCManagerW")
@@ -500,7 +523,7 @@ class SCMRApi(object):
         data += b"\x00\x00"  # TODO: figure out why this is needed
         data += struct.pack("<i", desired_access)
 
-        res = self._invoke(opnum, data)
+        res = self._invoke("ROpenServiceW", opnum, data)
         service_handle = res[:20]
         return_code = struct.unpack("<i", res[20:])[0]
         self._parse_error(return_code, errors, "ROpenServiceW")
@@ -532,7 +555,7 @@ class SCMRApi(object):
         data += b"".join([self._marshal_string(arg) for arg in args])
         data += b"\x00" * 4  # terminal arg list
 
-        res = self._invoke(opnum, data)
+        res = self._invoke("RStartServiceW", opnum, data)
         return_code = struct.unpack("<i", res)[0]
         self._parse_error(return_code, errors, "RStartServiceW")
 
@@ -582,14 +605,14 @@ class SCMRApi(object):
         pass_len = len(pass_bytes) if password else 0
         data += struct.pack("<i", pass_len)
 
-        res = self._invoke(opnum, data)
+        res = self._invoke("RCreateServiceWOW64W", opnum, data)
         tag_id = res[0:4]
         service_handle = res[4:24]
         return_code = struct.unpack("<i", res[24:])[0]
         self._parse_error(return_code, errors, "RCreateServiceWOW64W")
         return tag_id, service_handle
 
-    def _invoke(self, opnum, data):
+    def _invoke(self, function_name, opnum, data):
         req = RequestPDU()
         req['pfx_flags'].set_flag(PFlags.PFC_FIRST_FRAG)
         req['pfx_flags'].set_flag(PFlags.PFC_LAST_FRAG)
@@ -609,11 +632,15 @@ class SCMRApi(object):
 
         session_id = self.tree.session.session_id
         tree_id = self.tree.tree_connect_id
+        log.info("Sending svcctl RPC request for %s" % function_name)
+        log.debug(str(ioctl_request))
         request = self.tree.session.connection.send(ioctl_request,
                                                     sid=session_id,
                                                     tid=tree_id)
         while True:
             try:
+                log.info("Receiving svcctl RPC response for %s"
+                         % function_name)
                 resp = self.tree.session.connection.receive(request)
             except SMBResponseException as exc:
                 # try again if the status is pending
@@ -624,6 +651,7 @@ class SCMRApi(object):
 
         ioctl_resp = SMB2IOCTLResponse()
         ioctl_resp.unpack(resp['data'].get_value())
+        log.debug(str(ioctl_resp))
 
         pdu_resp = parse_pdu(ioctl_resp['buffer'].get_value())
         if not isinstance(pdu_resp, ResponsePDU):

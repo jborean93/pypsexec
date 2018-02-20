@@ -1,5 +1,10 @@
 # Python PsExec Library
 
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/jborean93/pypsexec/blob/master/LICENSE)
+[![Travis Build](https://travis-ci.org/jborean93/pypsexec.svg)](https://travis-ci.org/jborean93/pypsexec)
+[![AppVeyor Build](https://ci.appveyor.com/api/projects/status/github/jborean93/pypsexec?svg=true)](https://ci.appveyor.com/project/jborean93/pypsexec)
+[![Coverage](https://coveralls.io/repos/jborean93/pypsexec/badge.svg)](https://coveralls.io/r/jborean93/pypsexec)
+
 This library is run commands on a remote Windows host through SMB/RPC like the
 PsExec tool does. It is very closely related to the
 [smbprotocol](https://github.com/jborean93/smbprotocol) package.

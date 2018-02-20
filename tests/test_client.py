@@ -21,8 +21,6 @@ class TestClient(object):
         client = Client("username", "password", "server")
         assert client.server == "server"
         assert client.port == 445
-        assert client.username == "username"
-        assert client.password == "password"
         assert isinstance(client.pid, int)
         assert isinstance(client.current_host, str)
 
@@ -30,8 +28,6 @@ class TestClient(object):
         client = Client("username", "password", "server", port=123)
         assert client.server == "server"
         assert client.port == 123
-        assert client.username == "username"
-        assert client.password == "password"
         assert isinstance(client.pid, int)
         assert isinstance(client.current_host, str)
 

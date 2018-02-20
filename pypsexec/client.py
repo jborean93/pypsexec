@@ -1,4 +1,5 @@
 import binascii
+import logging
 import os
 import socket
 import sys
@@ -23,76 +24,101 @@ if sys.version[0] == '2':
 else:
     from queue import Empty
 
+log = logging.getLogger(__name__)
+
 
 class Client(object):
 
     def __init__(self, username, password, server, port=445, encrypt=True):
         self.server = server
         self.port = port
-        self.username = username
-        self.password = password
         self.pid = os.getpid()
         self.current_host = socket.gethostname()
         self.connection = Connection(uuid.uuid4(), server, port)
         self.session = Session(self.connection, username, password,
                                require_encryption=encrypt)
 
-        service_name = "PAExec-%d-%s" % (self.pid, self.current_host)
-        self._exe_file = "%s.exe" % service_name
+        self.service_name = "PAExec-%d-%s" % (self.pid, self.current_host)
+        log.info("Creating PyPsexec Client with unique name: %s"
+                 % self.service_name)
+        self._exe_file = "%s.exe" % self.service_name
         self._stdout_pipe_name = "PaExecOut%s%d"\
                                  % (self.current_host, self.pid)
         self._stderr_pipe_name = "PaExecErr%s%d"\
                                  % (self.current_host, self.pid)
         self._stdin_pipe_name = "PaExecIn%s%d" % (self.current_host, self.pid)
         self._unique_id = get_unique_id(self.pid, self.current_host)
-        self._service = Service(service_name, self.session)
+        log.info("Generated unique ID for PyPsexec Client: %d"
+                 % self._unique_id)
+        self._service = Service(self.service_name, self.session)
 
     def connect(self):
+        log.info("Setting up SMB Connection to %s:%d"
+                 % (self.server, self.port))
         self.connection.connect()
+        log.info("Authenticating SMB Session")
         self.session.connect()
+        log.info("Opening handle to SCMR and PAExec service")
         self._service.open()
 
     def disconnect(self):
+        log.info("Closing handle of PAExec service and SCMR")
         self._service.close()
+        log.info("Closing SMB Connection")
         self.connection.disconnect(True)
 
     def create_service(self):
         # check if the service exists and delete it
+        log.debug("Refreshing service details")
         self._service.refresh()
         if self._service.exists:
+            log.info("An existing PAExec service with the name %s exists, "
+                     "deleting the service" % self.service_name)
             self._service.delete()
 
         # copy across the PAExec payload to C:\Windows\
         smb_tree = TreeConnect(self.session,
                                r"\\%s\ADMIN$" % self.connection.server_name)
+        log.info("Connecting to SMB Tree %s" % smb_tree.share_name)
         smb_tree.connect()
         paexec_file = Open(smb_tree, self._exe_file)
+        log.debug("Creating open to PAExec file")
         paexec_file.open(ImpersonationLevel.Impersonation,
                          FilePipePrinterAccessMask.FILE_WRITE_DATA,
                          FileAttributes.FILE_ATTRIBUTE_NORMAL,
                          ShareAccess.FILE_SHARE_READ,
                          CreateDisposition.FILE_OVERWRITE_IF,
                          CreateOptions.FILE_NON_DIRECTORY_FILE)
+        log.info("Creating PAExec executable at %s\\%s"
+                 % (smb_tree.share_name, self._exe_file))
         paexec_file.write(binascii.unhexlify(PAEXEC_DATA), 0)
+        log.debug("Closing open to PAExec file")
         paexec_file.close(False)
+        log.info("Disconnecting from SMB Tree %s" % smb_tree.share_name)
         smb_tree.disconnect()
 
         # create the PAExec service and start it
+        log.debug("Making sure we have an open Service handle")
         self._service.open()
         service_path = r'"%SystemRoot%\{0}" -service'.format(self._exe_file)
+        log.info("Creating PAExec service %s" % self.service_name)
         self._service.create(service_path)
 
     def remove_service(self):
         # Stops/removes the PAExec service and removes the executable
+        log.debug("Refreshing service details")
         self._service.refresh()
         if self._service.exists:
+            log.info("PAExec service exists, deleting")
             self._service.delete()
 
         # delete the PAExec executable
         smb_tree = TreeConnect(self.session,
                                r"\\%s\ADMIN$" % self.connection.server_name)
+        log.info("Connecting to SMB Tree %s" % smb_tree.share_name)
         smb_tree.connect()
         paexec_file = Open(smb_tree, self._exe_file)
+        log.info("Creating open to PAExec file with delete on close flags")
         paexec_file.open(ImpersonationLevel.Impersonation,
                          FilePipePrinterAccessMask.DELETE,
                          FileAttributes.FILE_ATTRIBUTE_NORMAL,
@@ -100,7 +126,9 @@ class Client(object):
                          CreateDisposition.FILE_OVERWRITE_IF,
                          CreateOptions.FILE_NON_DIRECTORY_FILE |
                          CreateOptions.FILE_DELETE_ON_CLOSE)
+        log.debug("Closing PAExec open")
         paexec_file.close(False)
+        log.info("Disconnecting from SMB Tree %s" % smb_tree.share_name)
         smb_tree.disconnect()
 
     def run_executable(self, executable, arguments=None, processors=None,
@@ -174,10 +202,12 @@ class Client(object):
                                     "set, only 1 of these can be true")
 
         # ensure the service is started and running
+        log.debug("Making sure PAExec service is running")
         self._service.start()
 
         smb_tree = TreeConnect(self.session,
                                r"\\%s\IPC$" % self.connection.server_name)
+        log.info("Connecting to SMB Tree %s" % smb_tree.share_name)
         smb_tree.connect()
 
         settings = PAExecSettingsBuffer()
@@ -205,6 +235,7 @@ class Client(object):
 
         # write the settings to the main PAExec pipe
         main_pipe = Open(smb_tree, self._exe_file)
+        log.info("Creating open to main PAExec pipe: %s" % self._exe_file)
         main_pipe.open(
             ImpersonationLevel.Impersonation,
             FilePipePrinterAccessMask.GENERIC_READ |
@@ -218,11 +249,15 @@ class Client(object):
             CreateOptions.FILE_NON_DIRECTORY_FILE |
             CreateOptions.FILE_SYNCHRONOUS_IO_NONALERT
         )
+        log.info("Writing PAExecSettingsMsg to the main PAExec pipe")
+        log.debug(str(input_data))
         main_pipe.write(input_data.pack(), 0)
 
+        log.info("Reading PAExecMsg from the PAExec pipe")
         settings_resp_raw = main_pipe.read(0, 1024, wait=True)
         settings_resp = PAExecMsg()
         settings_resp.unpack(settings_resp_raw)
+        log.debug(str(settings_resp))
         settings_resp.check_resp()
 
         # start the process now
@@ -234,11 +269,16 @@ class Client(object):
         start_buffer['process_id'] = self.pid
         start_buffer['comp_name'] = self.current_host.encode('utf-16-le')
         start_msg['buffer'] = start_buffer
+
+        log.info("Writing PAExecMsg with PAExecStartBuffer to start the "
+                 "remote process")
+        log.debug(str(start_msg))
         main_pipe.write(start_msg.pack(), 0)
 
         if not interactive and not async:
             # create a pipe for stdout, stderr, and stdin and run in a separate
             # thread
+            log.info("Connecting to remote pipes to retrieve output")
             stdout_pipe = OutputPipe(smb_tree, self._stdout_pipe_name)
             stdout_pipe.start()
             stderr_pipe = OutputPipe(smb_tree, self._stderr_pipe_name)
@@ -248,39 +288,56 @@ class Client(object):
 
             # wait until the stdout and stderr pipes have sent their first
             # response
+            log.debug("Waiting for stdout pipe to send first request")
             stdout_pipe.pipe_buffer.get()
+            log.debug("Waiting for stderr pipe to send first request")
             stderr_pipe.pipe_buffer.get()
 
             # send any input if there was any
             if stdin:
+                log.info("Sending stdin bytes over stdin pipe: %s"
+                         % self._stdin_pipe_name)
                 stdin_pipe.pipe_buffer.put(stdin)
 
         # read the final response from the process
+        log.info("Reading result of PAExec process")
         exe_result_raw = main_pipe.read(0, 1024, wait=True)
+        log.info("Results read of PAExec process")
 
         if not interactive and not async:
+            log.info("Closing PAExec std* pipes")
             stdout_pipe.close()
             stderr_pipe.close()
             stdin_pipe.close()
+            log.info("Gettings stdout and stderr from pipe buffer queue")
             stdout = self._empty_queue(stdout_pipe.pipe_buffer)
             stderr = self._empty_queue(stderr_pipe.pipe_buffer)
         else:
             stdout = None
             stderr = None
 
+        log.info("Closing main PAExec pipe")
         main_pipe.close()
+        log.info("Disconnecting from SMB Tree %s" % smb_tree.share_name)
         smb_tree.disconnect()
 
         # we know the service has stopped once the process is finished
         self._service.status = "stopped"
 
+        log.info("Unpacking PAExecMsg data from process result")
         exe_result = PAExecMsg()
         exe_result.unpack(exe_result_raw)
+        log.debug(str(exe_result))
         exe_result.check_resp()
+        log.debug("Unpacking PAExecReturnBuffer from main PAExecMsg")
         rc = PAExecReturnBuffer()
         rc.unpack(exe_result['buffer'].get_value())
+        log.debug(str(rc))
 
         return_code = rc['return_code'].get_value()
+        log.info("Process finished with exit code: %d" % return_code)
+        log.debug("STDOUT: %s" % stdout)
+        log.debug("STDERR: %s" % stderr)
         return stdout, stderr, return_code
 
     def _encode_string(self, string):
