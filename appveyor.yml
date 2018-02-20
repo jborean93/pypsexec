@@ -7,6 +7,7 @@ environment:
     # /E:ON and /V:ON options are not enabled in the batch script intepreter
     # See: http://stackoverflow.com/a/13751649/163740
     WITH_COMPILER: "cmd /E:ON /V:ON /C .\\build-scripts\\run_with_compiler.cmd"
+    PYPSEXEC_SERVER: 127.0.01
   matrix:
   # https://www.appveyor.com/docs/installed-software/#python
   - PYTHON: Python27
@@ -24,6 +25,8 @@ init:
     # Override default Python version/architecture
     $env:Path="C:\$env:PYTHON;C:\$env:PYTHON\Scripts;$env:PATH"
     python -c "import platform; print('Python', platform.python_version(), platform.architecture()[0])"
+    $env:PYPSEXEC_USERNAME = $($env:USERNAME)
+    $env:PYPSEXEC_PASSWORD = [Microsoft.Win32.Registry]::GetValue("HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Winlogon", "DefaultPassword", '')
 
 install:
 - ps: |
