@@ -20,11 +20,10 @@ setup(
     install_requires=[
         'smbprotocol==0.0.1.dev0',
     ],
-    extras_require={},
     author='Jordan Borean',
     author_email='jborean93@gmail.com',
     url='https://github.com/jborean93/pypsexec',
-    description='Run commands on a remote server using SMB/RPC',
+    description='Run commands on a remote Windows host using SMB/RPC',
     long_description=long_description,
     keywords='windows psexec paexec remote python',
     license='MIT',
