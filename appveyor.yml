@@ -8,9 +8,6 @@ environment:
     # See: http://stackoverflow.com/a/13751649/163740
     WITH_COMPILER: "cmd /E:ON /V:ON /C .\\build-scripts\\run_with_compiler.cmd"
     PYPSEXEC_SERVER: 127.0.0.1
-    COVERALLS_PARALLEL: true
-    COVERALLS_REPO_TOKEN:
-      secure: pBP2vD9NMlMA6DZm732kdSyyuIr9mZqYQueG26c0MTZYGj6qf7zyhEKJnA6JgJPS
   matrix:
   # https://www.appveyor.com/docs/installed-software/#python
   - PYTHON: Python27
@@ -36,12 +33,8 @@ install:
     pip install -U pip setuptools
     pip install .
     pip install -r requirements-test.txt
-    pip install coveralls
 
 build: off  # Do not run MSBuild, build stuff at install step
 
 test_script:
 - ps: py.test -v --instafail --pep8 --cov pypsexec --cov-report term-missing
-
-after_test:
-- ps: coveralls
