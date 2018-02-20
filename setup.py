@@ -18,7 +18,7 @@ setup(
     version=__version__,
     packages=['pypsexec'],
     install_requires=[
-        'smbprotocol.dev0',
+        'smbprotocol==0.0.1.dev0',
     ],
     extras_require={},
     author='Jordan Borean',

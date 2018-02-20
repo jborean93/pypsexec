@@ -28,8 +28,6 @@ init:
 install:
 - ps: |
     pip install -U pip setuptools
-    # until smbprotocol is in pypi leave this here
-    pip install -e git+https://github.com/jborean93/smbprotocol.git@devel#egg=smbprotocol
     pip install .
     pip install -r requirements-test.txt
 
