@@ -81,7 +81,7 @@ class _NamedPipe(threading.Thread):
         wait_pipe['buffer'] = fsctl_data
 
         log.info("Sending FSCTL_PIPE_WAIT for pipe %s" % self.name)
-        log.debug(str(wait_pipe))
+        log.debug(str(fsctl_data))
         request = self.connection.send(wait_pipe, sid=self.sid, tid=self.tid)
 
         log.info("Receiving FSCTL_PIPE_WAIT response for pipe: %s" % self.name)

@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 
 class Client(object):
 
-    def __init__(self, username, password, server, port=445, encrypt=True):
+    def __init__(self, server, username=None, password=None, port=445, encrypt=True):
         self.server = server
         self.port = port
         self.pid = os.getpid()
@@ -250,7 +250,7 @@ class Client(object):
             CreateOptions.FILE_SYNCHRONOUS_IO_NONALERT
         )
         log.info("Writing PAExecSettingsMsg to the main PAExec pipe")
-        log.debug(str(input_data))
+        log.info(str(input_data))
         main_pipe.write(input_data.pack(), 0)
 
         log.info("Reading PAExecMsg from the PAExec pipe")
@@ -338,6 +338,7 @@ class Client(object):
         log.info("Process finished with exit code: %d" % return_code)
         log.debug("STDOUT: %s" % stdout)
         log.debug("STDERR: %s" % stderr)
+        log.debug("RC: %d" % return_code)
         return stdout, stderr, return_code
 
     def _encode_string(self, string):

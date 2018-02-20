@@ -18,34 +18,34 @@ class TestClient(object):
 
     def test_client_loads(self):
         # a very basic test that ensure the file still loads
-        client = Client("username", "password", "server")
+        client = Client("server", "username", "password")
         assert client.server == "server"
         assert client.port == 445
         assert isinstance(client.pid, int)
         assert isinstance(client.current_host, str)
 
     def test_port_override(self):
-        client = Client("username", "password", "server", port=123)
+        client = Client("server", "username", "password", port=123)
         assert client.server == "server"
         assert client.port == 123
         assert isinstance(client.pid, int)
         assert isinstance(client.current_host, str)
 
     def test_encode_string(self):
-        client = Client("username", "password", "server")
+        client = Client("server", "username", "password")
         expected = "string".encode('utf-16-le')
         actual = client._encode_string("string")
         assert actual == expected
 
     def test_empty_blank_queue(self):
-        client = Client("username", "password", "server")
+        client = Client("server", "username", "password")
         queue = Queue()
         expected = b""
         actual = client._empty_queue(queue)
         assert actual == expected
 
     def test_empty_filled_queue(self):
-        client = Client("username", "password", "server")
+        client = Client("server", "username", "password")
         queue = Queue()
         queue.put(b"Hello")
         queue.put(b"\n")
@@ -74,7 +74,7 @@ class TestClientFunctional(object):
         password = os.environ.get('PYPSEXEC_PASSWORD', None)
 
         if server and username and password:
-            client = Client(username, password, server)
+            client = Client(server, username=username, password=password)
             client.connect()
             try:
                 client.create_service()

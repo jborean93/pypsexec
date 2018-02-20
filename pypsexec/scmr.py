@@ -633,7 +633,7 @@ class SCMRApi(object):
         session_id = self.tree.session.session_id
         tree_id = self.tree.tree_connect_id
         log.info("Sending svcctl RPC request for %s" % function_name)
-        log.debug(str(ioctl_request))
+        log.debug(str(req))
         request = self.tree.session.connection.send(ioctl_request,
                                                     sid=session_id,
                                                     tid=tree_id)
