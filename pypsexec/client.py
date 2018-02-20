@@ -13,9 +13,9 @@ from smbprotocol.session import Session
 from smbprotocol.tree import TreeConnect
 
 from pypsexec.exceptions import PypsexecException
-from pypsexec.paexec import PAEXEC_DATA, PAExecMsg, PAExecMsgId, \
-    PAExecReturnBuffer, PAExecSettingsBuffer, PAExecSettingsMsg, \
-    PAExecStartBuffer, ProcessPriority, get_unique_id
+from pypsexec.paexec import PAExecMsg, PAExecMsgId, PAExecReturnBuffer, \
+    PAExecSettingsBuffer, PAExecSettingsMsg, PAExecStartBuffer, \
+    ProcessPriority, get_unique_id, paexec_out_stream
 from pypsexec.pipe import InputPipe, OutputPipe
 from pypsexec.scmr import Service
 
@@ -92,7 +92,8 @@ class Client(object):
                          CreateOptions.FILE_NON_DIRECTORY_FILE)
         log.info("Creating PAExec executable at %s\\%s"
                  % (smb_tree.share_name, self._exe_file))
-        paexec_file.write(binascii.unhexlify(PAEXEC_DATA), 0)
+        for (data, o) in paexec_out_stream(self.connection.max_write_size):
+            paexec_file.write(data, o)
         log.debug("Closing open to PAExec file")
         paexec_file.close(False)
         log.info("Disconnecting from SMB Tree %s" % smb_tree.share_name)

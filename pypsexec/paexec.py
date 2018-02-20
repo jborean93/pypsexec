@@ -1,3 +1,4 @@
+import binascii
 import os
 import struct
 
@@ -10,6 +11,19 @@ except ImportError:  # pragma: no cover
     from ordereddict import OrderedDict
 
 from pypsexec.exceptions import PAExecException
+
+
+def paexec_out_stream(buffer_size=4096):
+    """
+    Creates a generator to read the PAExec executable data as a bytes stream.
+
+    :param buffer_size: The size of the buffer yielded
+    :return:  (bytes, offset) = the butes and the offset of the bytes string
+    """
+    payload_bytes = binascii.unhexlify(PAEXEC_DATA)
+    byte_count = len(payload_bytes)
+    for i in range(0, byte_count, buffer_size):
+        yield payload_bytes[i:i + buffer_size], i
 
 
 def get_unique_id(pid, computer_name):

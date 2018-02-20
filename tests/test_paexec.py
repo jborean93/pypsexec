@@ -8,7 +8,21 @@ from datetime import datetime
 from pypsexec.exceptions import PAExecException
 from pypsexec.paexec import PAEXEC_DATA, PAExecFileInfo, PAExecMsg, \
     PAExecMsgId, PAExecSettingsBuffer, PAExecSettingsMsg, PAExecStartBuffer, \
-    PAExecReturnBuffer, ProcessPriority, get_unique_id
+    PAExecReturnBuffer, ProcessPriority, paexec_out_stream, get_unique_id
+
+
+def test_paexec_out_stream():
+    count = 0
+    actual = b""
+    for (data, offset) in paexec_out_stream(4096):
+        count += 1
+        actual += data
+        if count == 47:
+            assert len(actual) == 189112
+        else:
+            assert len(actual) == count * 4096
+    assert count == 47
+    assert actual == binascii.unhexlify(PAEXEC_DATA)
 
 
 def test_get_unique_id():
