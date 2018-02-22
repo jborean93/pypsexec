@@ -1,14 +1,14 @@
-import binascii
 import logging
 import os
 import socket
 import sys
 import uuid
 
-from smbprotocol.connection import Connection
+from smbprotocol.connection import Connection, NtStatus
+from smbprotocol.exceptions import SMBResponseException
 from smbprotocol.open import CreateDisposition, CreateOptions, \
-    FileAttributes, FilePipePrinterAccessMask, ImpersonationLevel, Open, \
-    ShareAccess
+    DirectoryAccessMask, FileAttributes, FileInformationClass, \
+    FilePipePrinterAccessMask, ImpersonationLevel, Open, ShareAccess
 from smbprotocol.session import Session
 from smbprotocol.tree import TreeConnect
 
@@ -17,7 +17,8 @@ from pypsexec.paexec import PAExecMsg, PAExecMsgId, PAExecReturnBuffer, \
     PAExecSettingsBuffer, PAExecSettingsMsg, PAExecStartBuffer, \
     ProcessPriority, get_unique_id, paexec_out_stream
 from pypsexec.pipe import InputPipe, OutputPipe
-from pypsexec.scmr import Service
+from pypsexec.scmr import DesiredAccess, EnumServiceState, SCMRApi, Service, \
+    ServiceType
 
 if sys.version[0] == '2':
     from Queue import Empty
@@ -107,6 +108,11 @@ class Client(object):
         self._service.create(service_path)
 
     def remove_service(self):
+        """
+        Removes the PAExec service and executable that was created as part of
+        the create_service function. This does not remove any older executables
+        or services from previous runs, use cleanup() instead for that purpose.
+        """
         # Stops/removes the PAExec service and removes the executable
         log.debug("Refreshing service details")
         self._service.refresh()
@@ -132,6 +138,74 @@ class Client(object):
         paexec_file.close(False)
         log.info("Disconnecting from SMB Tree %s" % smb_tree.share_name)
         smb_tree.disconnect()
+
+    def cleanup(self):
+        """
+        Cleans up any old services or payloads that may have been left behind
+        on a previous failure. This will search C:\Windows for any files
+        starting with PAExec-*.exe and delete them. It will also stop and
+        remove any services that start with PAExec-* if they exist.
+
+        Before calling this function, the connect() function must have already
+        been called.
+        """
+        scmr = SCMRApi(self.session)
+        scmr.open()
+        sc_desired_access = DesiredAccess.SC_MANAGER_CONNECT | \
+            DesiredAccess.SC_MANAGER_CREATE_SERVICE | \
+            DesiredAccess.SC_MANAGER_ENUMERATE_SERVICE
+        scmr_handle = scmr.open_sc_manager_w(self.connection.server_name,
+                                             None, sc_desired_access)
+        try:
+            services = scmr.enum_services_status_w(scmr_handle,
+                                                   ServiceType.
+                                                   SERVICE_WIN32_OWN_PROCESS,
+                                                   EnumServiceState.
+                                                   SERVICE_STATE_ALL)
+            for service in services:
+                if service['service_name'].lower().startswith("paexec"):
+                    svc = Service(service['service_name'], self.session)
+                    svc.open()
+                    svc.delete()
+                    svc.close()
+        finally:
+            scmr.close_service_handle_w(scmr_handle)
+            scmr.close()
+
+        smb_tree = TreeConnect(self.session,
+                               r"\\%s\ADMIN$" % self.connection.server_name)
+        smb_tree.connect()
+
+        share = Open(smb_tree, "")
+        share.open(ImpersonationLevel.Impersonation,
+                   DirectoryAccessMask.FILE_READ_ATTRIBUTES |
+                   DirectoryAccessMask.SYNCHRONIZE |
+                   DirectoryAccessMask.FILE_LIST_DIRECTORY,
+                   FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
+                   ShareAccess.FILE_SHARE_READ | ShareAccess.FILE_SHARE_WRITE |
+                   ShareAccess.FILE_SHARE_DELETE,
+                   CreateDisposition.FILE_OPEN,
+                   CreateOptions.FILE_DIRECTORY_FILE)
+        try:
+            files = share.query_directory("PAExec-*.exe",
+                                          FileInformationClass.
+                                          FILE_NAMES_INFORMATION)
+        except SMBResponseException as exc:
+            if exc.status != NtStatus.STATUS_NO_SUCH_FILE:
+                raise exc
+            files = []
+
+        for file in files:
+            file_name = file['file_name'].get_value().decode('utf-16-le')
+            file_open = Open(smb_tree, file_name)
+            file_open.open(ImpersonationLevel.Impersonation,
+                           FilePipePrinterAccessMask.DELETE,
+                           FileAttributes.FILE_ATTRIBUTE_NORMAL,
+                           0,
+                           CreateDisposition.FILE_OPEN,
+                           CreateOptions.FILE_NON_DIRECTORY_FILE |
+                           CreateOptions.FILE_DELETE_ON_CLOSE)
+            file_open.close(get_attributes=False)
 
     def run_executable(self, executable, arguments=None, processors=None,
                        async=False, load_profile=True,
@@ -256,7 +330,7 @@ class Client(object):
         main_pipe.write(input_data.pack(), 0)
 
         log.info("Reading PAExecMsg from the PAExec pipe")
-        settings_resp_raw = main_pipe.read(0, 1024, wait=True)
+        settings_resp_raw = main_pipe.read(0, 1024)
         settings_resp = PAExecMsg()
         settings_resp.unpack(settings_resp_raw)
         log.debug(str(settings_resp))
@@ -303,7 +377,7 @@ class Client(object):
 
         # read the final response from the process
         log.info("Reading result of PAExec process")
-        exe_result_raw = main_pipe.read(0, 1024, wait=True)
+        exe_result_raw = main_pipe.read(0, 1024)
         log.info("Results read of PAExec process")
 
         if not interactive and not async:

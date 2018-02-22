@@ -129,7 +129,7 @@ class InputPipe(_NamedPipe):
                     break
 
                 log.debug("Writing bytes to Input Named Pipe: %s" % self.name)
-                self.pipe.write(input_data, 0, wait=True)
+                self.pipe.write(input_data, 0)
         finally:
             log.debug("Closing SMB Open to Input Named Pipe: %s" % self.name)
             self.pipe.close(get_attributes=False)
@@ -179,7 +179,7 @@ class OutputPipe(_NamedPipe):
                 try:
                     log.debug("Reading SMB Read response for Output Named "
                               "Pipe: %s" % self.name)
-                    pipe_out = read_resp_func(request, wait=True)
+                    pipe_out = read_resp_func(request)
                     log.debug("Received SMB Read response for Output Named "
                               "Pipe: %s" % self.name)
                     self.pipe_buffer.put(pipe_out)

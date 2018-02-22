@@ -10,11 +10,13 @@ from smbprotocol.tree import TreeConnect
 from smbprotocol.open import CreateDisposition, CreateOptions, \
     FileAttributes, FilePipePrinterAccessMask, ImpersonationLevel, Open, \
     ShareAccess
+from six import string_types
 
-from pypsexec.exceptions import SCMRException
+from pypsexec.exceptions import PDUException, SCMRException
 from pypsexec.paexec import PAEXEC_DATA
-from pypsexec.scmr import ControlsAccepted, CurrentState, SCMRApi, Service, \
-    ServiceStatus, ServiceType
+from pypsexec.rpc import DataRepresentationFormat, FaultPDU, ResponsePDU
+from pypsexec.scmr import ControlsAccepted, CurrentState, DesiredAccess, \
+    EnumServiceState, SCMRApi, Service, ServiceStatus, ServiceType
 
 
 class TestServiceStatus(object):
@@ -65,23 +67,45 @@ class TestServiceStatus(object):
 
 class TestSCMRApi(object):
 
+    def test_parse_pdu_fine(self):
+        connection = Connection(uuid.uuid4(), "server", 445)
+        session = Session(connection, "user", "password")
+        api = SCMRApi(session)
+        response_pdu = ResponsePDU()
+        response_pdu['packed_drep'] = DataRepresentationFormat()
+        response_pdu['stub_data'] = b"\x01\x02\x03\x04"
+        expected = b"\x01\x02\x03\x04"
+        actual = api._parse_pdu(response_pdu.pack(), 10)
+        assert actual == expected
+
+    def test_parse_pdu_failure(self):
+        connection = Connection(uuid.uuid4(), "server", 445)
+        session = Session(connection, "user", "password")
+        api = SCMRApi(session)
+        fault_pdu = FaultPDU()
+        fault_pdu['packed_drep'] = DataRepresentationFormat()
+        with pytest.raises(PDUException) as exc:
+            api._parse_pdu(fault_pdu.pack(), 10)
+        assert "Expecting ResponsePDU for opnum 10 response but got: " \
+               "FaultPDU" in str(exc.value)
+
     def test_parse_error(self):
         connection = Connection(uuid.uuid4(), "server", 445)
         session = Session(connection, "user", "password")
         api = SCMRApi(session)
         with pytest.raises(SCMRException) as exc:
-            api._parse_error(0, {0: "ERROR_TEST"}, "function_name")
-        assert str(exc.value) == "Exception calling function_name. Code: 0, " \
-                                 "Msg: ERROR_TEST"
+            api._parse_error(5, "function_name")
+        assert str(exc.value) == "Exception calling function_name. Code: 5" \
+                                 ", Msg: ERROR_ACCESS_DENIED"
 
     def test_parse_error_unknown(self):
         connection = Connection(uuid.uuid4(), "server", 445)
         session = Session(connection, "user", "password")
         api = SCMRApi(session)
         with pytest.raises(SCMRException) as exc:
-            api._parse_error(1, {0: "ERROR_TEST"}, "function_name")
-        assert str(exc.value) == "Exception calling function_name. Code: 1, " \
-                                 "Msg: ERROR_UNKNOWN"
+            api._parse_error(999, "function_name")
+        assert str(exc.value) == "Exception calling function_name. Code: 999" \
+                                 ", Msg: ERROR_UNKNOWN"
 
     def test_marshal_string_none(self):
         connection = Connection(uuid.uuid4(), "server", 445)
@@ -100,8 +124,21 @@ class TestSCMRApi(object):
         expected = b"\x03\x00\x00\x00" \
                    b"\x00\x00\x00\x00" \
                    b"\x03\x00\x00\x00" \
-                   b"\x68\x00\x69\x00\x00\x00"
+                   b"\x68\x00\x69\x00\x00\x00" \
+                   b"\x00\x00"
         actual = api._marshal_string("hi")
+        assert actual == expected
+
+    def test_marshal_string_no_padding(self):
+        connection = Connection(uuid.uuid4(), "server", 445)
+        session = Session(connection, "user", "password")
+        api = SCMRApi(session)
+
+        expected = b"\x02\x00\x00\x00" \
+                   b"\x00\x00\x00\x00" \
+                   b"\x02\x00\x00\x00" \
+                   b"\x68\x00\x00\x00"
+        actual = api._marshal_string("h")
         assert actual == expected
 
     def test_marshal_string_as_referent(self):
@@ -113,8 +150,9 @@ class TestSCMRApi(object):
                    b"\x03\x00\x00\x00" \
                    b"\x00\x00\x00\x00" \
                    b"\x03\x00\x00\x00" \
-                   b"\x68\x00\x69\x00\x00\x00"
-        actual = api._marshal_string("hi", referent_required=True)
+                   b"\x68\x00\x69\x00\x00\x00" \
+                   b"\x00\x00"
+        actual = api._marshal_string("hi", unique=True)
         assert actual == expected
 
 
@@ -163,6 +201,20 @@ class TestServiceFunctional(object):
                         " environment variables were not set. Integration "
                         "tests will be skipped")
 
+    def _create_dummy_stopped_service(self, session):
+        service = Service("pypsexectest", session)
+        service.open()
+
+        if service.exists:
+            service.delete()
+
+        service.create("C:\\Windows\\PAExec.exe -service")
+        service.refresh()
+
+        if service.status != "stopped":
+            service.stop()
+        return service
+
     def test_open_service_missing(self, session):
         service = Service("missing-service", session)
         service.open()
@@ -171,17 +223,14 @@ class TestServiceFunctional(object):
         service.close()
 
     def test_open_service_existing(self, session):
-        service = Service("LanmanServer", session)
-        service.open()
-        assert service.exists
-        assert service.status == "running"
-
-        # open it one more time to make sure it doesn't fail
-        service.open()
-        assert service.exists
-        assert service.status == "running"
-
-        service.close()
+        service = self._create_dummy_stopped_service(session)
+        try:
+            service.open()
+            assert service.exists
+            assert service.status == "stopped"
+        finally:
+            service.delete()
+            service.close()
 
     def test_open_service_with_invalid_name(self, session):
         service = Service(b"\x00 a service".decode('utf-8'), session)
@@ -192,13 +241,19 @@ class TestServiceFunctional(object):
                                  "Code: 123, Msg: ERROR_INVALID_NAME"
 
     def test_refresh_service_without_an_open(self, session):
-        service = Service("LanmanServer", session)
-        assert service.exists is None
-        assert service.status is None
-        service.refresh()
-        assert service.exists
-        assert service.status == "running"
+        service = self._create_dummy_stopped_service(session)
         service.close()
+
+        try:
+            service = Service("pypsexectest", session)
+            assert service.exists is None
+            assert service.status is None
+            service.refresh()
+            assert service.exists
+            assert service.status == "stopped"
+        finally:
+            service.delete()
+            service.close()
 
     def test_refresh_service_that_does_not_exist(self, session):
         service = Service("missing-service", session)
@@ -209,17 +264,18 @@ class TestServiceFunctional(object):
         service.close()
 
     def test_start_an_already_started_service(self, session):
-        service = Service("LanmanServer", session)
-        service.open()
-        assert service.status == "running"
-        service.start()
-        assert service.status == "running"
-        service.close()
+        service = self._create_dummy_stopped_service(session)
+        try:
+            service.start()
+            assert service.status == "running"
+            service.start()
+            assert service.status == "running"
+        finally:
+            service.delete()
+            service.close()
 
     def test_create_dummy_service(self, session):
-        service = Service("pypsexectest", session)
-        service.open()
-        service.create("C:\\Windows\\PAExec.exe -service")
+        service = self._create_dummy_stopped_service(session)
         try:
             service.refresh()
             assert service.exists
@@ -239,3 +295,58 @@ class TestServiceFunctional(object):
         finally:
             service.delete()
             service.close()
+
+    def test_enumerate_services(self, session):
+        scmr = SCMRApi(session)
+        scmr.open()
+        try:
+            scmr_handle = scmr.open_sc_manager_w(
+                session.connection.server_name,
+                None,
+                DesiredAccess.SC_MANAGER_CONNECT |
+                DesiredAccess.SC_MANAGER_CREATE_SERVICE |
+                DesiredAccess.SC_MANAGER_ENUMERATE_SERVICE)
+
+            types = ServiceType.SERVICE_INTERACTIVE_PROCESS | \
+                ServiceType.SERVICE_KERNEL_DRIVER | \
+                ServiceType.SERVICE_WIN32_SHARE_PROCESS | \
+                ServiceType.SERVICE_WIN32_OWN_PROCESS | \
+                ServiceType.SERVICE_FILE_SYSTEM_DRIVER
+            actual = scmr.enum_services_status_w(scmr_handle,
+                                                 types,
+                                                 EnumServiceState.
+                                                 SERVICE_STATE_ALL)
+
+            assert len(actual) > 0
+            assert isinstance(actual[0]['display_name'], string_types)
+            assert isinstance(actual[0]['service_name'], string_types)
+            assert isinstance(actual[0]['service_status'], ServiceStatus)
+        finally:
+            if scmr_handle:
+                scmr.close_service_handle_w(scmr_handle)
+            scmr.close()
+
+    def test_enumerate_services_small_buffer(self, session):
+        scmr = SCMRApi(session)
+        scmr.open()
+        try:
+            scmr_handle = scmr.open_sc_manager_w(
+                session.connection.server_name,
+                None,
+                DesiredAccess.SC_MANAGER_CONNECT |
+                DesiredAccess.SC_MANAGER_CREATE_SERVICE |
+                DesiredAccess.SC_MANAGER_ENUMERATE_SERVICE)
+
+            actual = scmr.enum_services_status_w(scmr_handle,
+                                                 ServiceType.
+                                                 SERVICE_INTERACTIVE_PROCESS,
+                                                 EnumServiceState.
+                                                 SERVICE_STATE_ALL)
+            assert len(actual) > 0
+            assert isinstance(actual[0]['display_name'], string_types)
+            assert isinstance(actual[0]['service_name'], string_types)
+            assert isinstance(actual[0]['service_status'], ServiceStatus)
+        finally:
+            if scmr_handle:
+                scmr.close_service_handle_w(scmr_handle)
+            scmr.close()

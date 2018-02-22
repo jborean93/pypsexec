@@ -125,18 +125,30 @@ pypsexec requires is;
 * SMB to be up and running on the Windows port and readable from the Python host
 * The `ADMIN$` share to be enabled with read/write access of the user configured
 * The above usually means the configured user is an administrator of the Windows host
+* At least SMB 2 on the host (Server 2008 and newer)
 
 
 ## Examples
 
 Here is an example of how to run a command with this library
 
-
 ```
 from pypsexec.client import Client
 
+# creates an encrypted connection to the host with the username and password
+c = Client("server", username="username", password="password")
+
 # set encrypt=False for Windows 7, Server 2008
-c = Client("server", username="username", password="password", encrypt=True)
+c = Client("server", username="username", password="password")
+
+# if Kerberos is available, this will use the default credentials in the
+# credential cache
+c = Client("server")
+
+# you can also tell it to use a specific Kerberos principal in the cache
+# without a password
+c = Client("server", username="username@DOMAIN.LOCAL")
+
 c.connect()
 try:
     c.create_service()
@@ -154,18 +166,37 @@ try:
     # run command asynchronously (in background), the rc is the PID of the spawned service
     stdout, stderr, rc = c.run_executable("longrunning.exe",
                                           arguments="/s other args",
-                                          async=True
+                                          async=True)
 
     # run whoami.exe as a specific user
-    stdout,s tderr, rc = c.run_executable("whoami",
+    stdout, stderr, rc = c.run_executable("whoami",
                                           arguments="/all",
                                           username="local-user",
-                                          password="password,
+                                          password="password",
                                           run_elevated=True)
 finally:
     c.remove_service()
     c.disconnect()
 ```
+
+In the case of a fatal failure, this project may leave behind some the PAExec
+payload in `C:\Windows` or the service still installed. As these are uniquely
+named they can build up over time. They can be manually removed but you can
+also use pypsexec to cleanup them all up at once. To do this run
+
+```
+from pypsexec.client import Client
+
+c = Client("server", username="username", password="password")
+c.connect()
+c.cleanup()  # this is where the magic happens
+c.disconnect()
+```
+
+The script will delete any files that match `C:\Windows\PAExec-*` and any
+services that match `PAExec-*`. For an individual run, the `remove_service()`
+function should still be used.
+
 
 ### Run Executable Options
 

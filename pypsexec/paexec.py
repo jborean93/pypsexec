@@ -5,12 +5,12 @@ import struct
 from smbprotocol.structure import BoolField, BytesField, EnumField, \
     IntField, ListField, Structure, StructureField, DateTimeField
 
+from pypsexec.exceptions import PAExecException
+
 try:
     from collections import OrderedDict
 except ImportError:  # pragma: no cover
     from ordereddict import OrderedDict
-
-from pypsexec.exceptions import PAExecException
 
 
 def paexec_out_stream(buffer_size=4096):

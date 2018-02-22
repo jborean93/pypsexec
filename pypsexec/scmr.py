@@ -138,6 +138,52 @@ class ControlsAccepted(object):
     SERVICE_ACCEPT_TRIGGEREVENT = 0x00000400
 
 
+class EnumServiceState(object):
+    """
+    https://msdn.microsoft.com/en-us/library/cc245933.aspx
+    dwServiceState
+    Specifies the service records to enumerate
+    """
+    SERVICE_ACTIVE = 0x00000001
+    SERVICE_INACTIVE = 0x00000002
+    SERVICE_STATE_ALL = 0x00000003
+
+
+class ScmrReturnValues(object):
+    # The return values a RPC request can return
+    ERROR_SUCCESS = 0
+    ERROR_SUCCESS_NOTIFY_CHANGED = 0xFE75FFFF
+    ERROR_SUCCESS_LAST_NOTIFY_CHANGED = 0xFD75FFFF
+    ERROR_FILE_NOT_FOUND = 2
+    ERROR_PATH_NOT_FOUND = 3
+    ERROR_ACCESS_DENIED = 5
+    ERROR_INVALID_HANDLE = 6
+    ERROR_INVALID_DATA = 13
+    ERROR_INVALID_PARAMETER = 87
+    ERROR_INVALID_NAME = 123
+    ERROR_MORE_DATA = 234
+    ERROR_DEPENDENT_SERVICES_RUNNING = 1051
+    ERROR_INVALID_SERVICE_CONTROL = 1052
+    ERROR_SERVICE_REQUEST_TIMEOUT = 1053
+    ERROR_SERVICE_NO_THREAD = 1054
+    ERROR_SERVICE_DATABASE_LOCKED = 1055
+    ERROR_SERVICE_ALREADY_RUNNING = 1056
+    ERROR_INVALID_SERVICE_ACCOUNT = 1057
+    ERROR_SERVICE_DISABLED = 1058
+    ERROR_CIRCULAR_DEPENDENCY = 1059
+    ERROR_SERVICE_DOES_NOT_EXIST = 1060
+    ERROR_SERVICE_CANNOT_ACCEPT_CTRL = 1061
+    ERROR_SERVICE_NOT_ACTIVE = 1062
+    ERROR_DATABASE_DOES_NOT_EXIST = 1065
+    ERROR_SERVICE_DEPENDENCY_FAIL = 1068
+    ERROR_SERVICE_LOGON_FAILED = 1069
+    ERROR_SERVICE_MARKED_FOR_DELETE = 1072
+    ERROR_SERVICE_EXISTS = 1073
+    ERROR_SERVICE_DEPENDENCY_DELETED = 1075
+    ERROR_DUPLICATE_SERVICE_NAME = 1078
+    ERROR_SHUTDOWN_IN_PROGRESS = 1115
+
+
 class ServiceStatus(Structure):
     """
     [MS-SCMR] 2.2.47 SERVICE_STATUS
@@ -148,9 +194,10 @@ class ServiceStatus(Structure):
 
     def __init__(self):
         self.fields = OrderedDict([
-            ('service_type', EnumField(
+            ('service_type', FlagField(
                 size=4,
-                enum_type=ServiceType
+                flag_type=ServiceType,
+                flag_strict=False
             )),
             ('current_state', EnumField(
                 size=4,
@@ -158,7 +205,8 @@ class ServiceStatus(Structure):
             )),
             ('controls_accepted', FlagField(
                 size=4,
-                flag_type=ControlsAccepted
+                flag_type=ControlsAccepted,
+                flag_strict=False
             )),
             ('win32_exit_code', IntField(size=4)),
             ('service_specified_exit_code', IntField(size=4)),
@@ -325,6 +373,7 @@ class SCMRApi(object):
     def open(self):
         log.debug("Connecting to SMB Tree %s for SCMR" % self.tree.share_name)
         self.tree.connect()
+
         log.debug("Opening handle to svcctl pipe")
         self.handle.open(ImpersonationLevel.Impersonation,
                          FilePipePrinterAccessMask.GENERIC_READ |
@@ -409,34 +458,16 @@ class SCMRApi(object):
 
     def close_service_handle_w(self, handle):
         # https://msdn.microsoft.com/en-us/library/cc245920.aspx
-        errors = {
-            0: "ERROR_SUCCESS",
-            0xFFFF75FE: "ERROR_SUCCESS_NOTIFY_CHANGED",
-            0xFFFF75FD: "ERROR_SUCCESS_LAST_NOTIFY_CHANGED",
-            6: "ERROR_INVALID_HANDLE"
-        }
         opnum = 0
 
         res = self._invoke("RCloseServiceHandleW", opnum, handle)
         handle = res[:20]
         return_code = struct.unpack("<i", res[20:])[0]
-        self._parse_error(return_code, errors, "RCloseServiceHandleW")
+        self._parse_error(return_code, "RCloseServiceHandleW")
         return handle
 
     def control_service(self, service_handle, control_code):
         # https://msdn.microsoft.com/en-us/library/cc245921.aspx
-        errors = {
-            0: "ERROR_SUCCESS",
-            5: "ERROR_ACCESS_DENIED",
-            6: "ERROR_INVALID_HANDLE",
-            87: "ERROR_INVALID_PARAMETER",
-            1051: "ERROR_DEPENDENT_SERVICES_RUNNING",
-            1052: "ERROR_INVALID_SERVICE_CONTROL",
-            1053: "ERROR_SERVICE_REQUEST_TIMEOUT",
-            1061: "ERROR_SERVICE_CANNOT_ACCEPT_CTRL",
-            1062: "ERROR_SERVICE_NOT_ACTIVE",
-            1115: "ERROR_SHUTDOWN_IN_PROGRESS"
-        }
         opnum = 1
 
         data = service_handle
@@ -444,7 +475,7 @@ class SCMRApi(object):
 
         res = self._invoke("RControlService", opnum, data)
         return_code = struct.unpack("<i", res[-4:])[0]
-        self._parse_error(return_code, errors, "RControlService")
+        self._parse_error(return_code, "RControlService")
 
         service_status = ServiceStatus()
         service_status.unpack(res[:-4])
@@ -453,111 +484,139 @@ class SCMRApi(object):
 
     def delete_service(self, service_handle):
         # https://msdn.microsoft.com/en-us/library/cc245926.aspx
-        errors = {
-            0: "ERROR_SUCCESS",
-            5: "ERROR_ACCESS_DENIED",
-            6: "ERROR_INVALID_HANDLE",
-            1072: "ERROR_SERVICE_MAKRED_FOR_DELETE",
-            1115: "ERROR_SHUTDOWN_IN_PROGRESS"
-        }
         opnum = 2
 
         res = self._invoke("RDeleteService", opnum, service_handle)
         return_code = struct.unpack("<i", res)[0]
-        self._parse_error(return_code, errors, "RDeleteService")
+        self._parse_error(return_code, "RDeleteService")
 
     def query_service_status(self, service_handle):
         # https://msdn.microsoft.com/en-us/library/cc245952.aspx
-        errors = {
-            0: "ERROR_SUCCESS",
-            3: "ERROR_PATH_NOT_FOUND",
-            5: "ERROR_ACCESS_DENIED",
-            6: "ERROR_INVALID_HANDLE",
-            1115: "ERROR_SHUTDOWN_IN_PROGRESS"
-        }
         opnum = 6
 
         res = self._invoke("RQueryServiceStatus", opnum, service_handle)
         return_code = struct.unpack("<i", res[-4:])[0]
-        self._parse_error(return_code, errors, "RQueryServiceStatus")
+        self._parse_error(return_code, "RQueryServiceStatus")
 
         service_status = ServiceStatus()
         service_status.unpack(res[:-4])
 
         return service_status
 
+    def enum_services_status_w(self, server_handle, service_type,
+                               service_state):
+        """
+        Enumerates the services based on the criteria selected
+
+        :param server_handle: A handle to SCMR
+        :param service_type: ServiceType flags to filter by service type
+        :param service_state: EnumServiceState enum value
+        :return: List dictionaries with the following entries
+            service_name: The service name of the service
+            display_name: The display name of the service
+            service_status: ServiceStatus structure of the service
+        """
+        # https://msdn.microsoft.com/en-us/library/cc245933.aspx
+        opnum = 14
+
+        # sent 0 bytes on the buffer size for the 1st request to get the
+        # buffer size that is required
+        req_data = server_handle
+        req_data += struct.pack("<i", service_type)
+        req_data += struct.pack("<i", service_state)
+        req_data += struct.pack("<i", 0)
+        req_data += b"\x00\x00\x00\x00"
+        res = self._invoke("REnumServicesStatusW", opnum, req_data)
+
+        # now send another request with the total buffer size sent
+        buffer_size = struct.unpack("<i", res[4:8])[0]
+        req_data = server_handle
+        req_data += struct.pack("<i", service_type)
+        req_data += struct.pack("<i", service_state)
+        req_data += res[4:8]
+        req_data += b"\x00\x00\x00\x00"
+
+        try:
+            res = self._invoke("REnumServicesStatusW", opnum, req_data)
+            data = res
+        except SMBResponseException as exc:
+            if exc.status != NtStatus.STATUS_BUFFER_OVERFLOW:
+                raise exc
+
+            ioctl_resp = SMB2IOCTLResponse()
+            ioctl_resp.unpack(exc.header['data'].get_value())
+            pdu_resp = self._parse_pdu(ioctl_resp['buffer'].get_value(), opnum)
+            read_data = self.handle.read(0, 3256)  # 4280 - 1024
+            data = pdu_resp + read_data
+
+        while len(data) < buffer_size:
+            read_data = self.handle.read(0, 4280)
+            data += self._parse_pdu(read_data, opnum)
+
+        return_code = struct.unpack("<i", data[-4:])[0]
+        self._parse_error(return_code, "REnumServicesStatusW")
+
+        # now we have all the data, let's unpack it
+        services = []
+        services_returned = struct.unpack("<i", data[-12:-8])[0]
+        offset = 4
+        for i in range(0, services_returned):
+            name_offset = struct.unpack("<i", data[offset:4 + offset])[0]
+            disp_offset = struct.unpack("<i", data[4 + offset:8 + offset])[0]
+            service_status = ServiceStatus()
+            service_name = data[name_offset + 4:].split(b"\x00\x00")[0]
+            display_name = data[disp_offset + 4:].split(b"\x00\x00")[0]
+            service_status.unpack(data[offset + 8:])
+
+            service_info = {
+                "display_name": (display_name + b"\x00").decode('utf-16-le'),
+                "service_name": (service_name + b"\x00").decode('utf-16-le'),
+                "service_status": service_status
+            }
+            services.append(service_info)
+            offset += 8 + len(service_status)
+
+        return services
+
     def open_sc_manager_w(self, machine_name, database_name, desired_access):
         # https://msdn.microsoft.com/en-us/library/cc245942.aspx
-        errors = {
-            0: "ERROR_SUCCESS",
-            5: "ERROR_ACCESS_DENIED",
-            123: "ERROR_INVALID_NAME",
-            1065: "ERROR_DATABASE_DOES_NOT_EXIST",
-            1115: "ERROR_SHUTDOWN_IN_PROGRESS"
-        }
         opnum = 15
 
-        data = self._marshal_string(machine_name, True)
+        data = self._marshal_string(machine_name, unique=True)
         data += self._marshal_string(database_name)
         data += struct.pack("<i", desired_access)
 
         res = self._invoke("ROpenSCManagerW", opnum, data)
         server_handle = res[:20]
         return_code = struct.unpack("<i", res[20:])[0]
-        self._parse_error(return_code, errors, "ROpenSCManagerW")
+        self._parse_error(return_code, "ROpenSCManagerW")
         return server_handle
 
     def open_service_w(self, server_handle, service_name, desired_access):
         # https://msdn.microsoft.com/en-us/library/cc245944.aspx
-        errors = {
-            0: "ERROR_SUCCESS",
-            6: "ERROR_INVALID_HANDLE",
-            123: "ERROR_INVALID_NAME",
-            1060: "ERROR_SERVICE_DOES_NOT_EXIST",
-            1115: "ERROR_SHUTDOWN_IN_PROGRESS"
-        }
         opnum = 16
 
         data = server_handle
         data += self._marshal_string(service_name)
-        data += b"\x00\x00"  # TODO: figure out why this is needed
         data += struct.pack("<i", desired_access)
 
         res = self._invoke("ROpenServiceW", opnum, data)
         service_handle = res[:20]
         return_code = struct.unpack("<i", res[20:])[0]
-        self._parse_error(return_code, errors, "ROpenServiceW")
+        self._parse_error(return_code, "ROpenServiceW")
         return service_handle
 
     def start_service_w(self, service_handle, *args):
-        errors = {
-            0: "ERROR_SUCCESS",
-            2: "ERROR_FILE_NOT_FOUND",
-            3: "ERROR_PATH_NOT_FOUND",
-            5: "ERROR_ACCESS_DENIED",
-            6: "ERROR_INVALID_HANDLE",
-            87: "ERROR_INVALID_PARAMETER",
-            1053: "ERROR_SERVICE_REQUEST_TIMEOUT",
-            1054: "ERROR_SERVICE_NO_THREAD",
-            1055: "ERROR_SERVICE_DATABASE_LOCKED",
-            1056: "ERROR_SERVICE_ALREADY_RUNNING",
-            1058: "ERROR_SERVICE_DISABLED",
-            1068: "ERROR_SERVICE_DEPENDENCY_FAIL",
-            1069: "ERROR_SERVICE_LOGON_FAILED",
-            1072: "ERROR_SERVICE_MARKED_FOR_DELETE",
-            1075: "ERROR_SERVICE_DEPENDENCY_DELETED",
-            1115: "ERROR_SHUTDOWN_IN_PROGRESS"
-        }
         opnum = 19
 
         data = service_handle
         data += struct.pack("<i", len(args))
         data += b"".join([self._marshal_string(arg) for arg in args])
-        data += b"\x00" * 4  # terminal arg list
+        data += b"\x00" * 4  # terminate arg list
 
         res = self._invoke("RStartServiceW", opnum, data)
         return_code = struct.unpack("<i", res)[0]
-        self._parse_error(return_code, errors, "RStartServiceW")
+        self._parse_error(return_code, "RStartServiceW")
 
     def create_service_wow64_w(self, server_handle, service_name,
                                display_name, desired_access, service_type,
@@ -565,25 +624,11 @@ class SCMRApi(object):
                                load_order_group, tag_id, dependencies,
                                username, password):
         # https://msdn.microsoft.com/en-us/library/cc245925.aspx
-        errors = {
-            0: "ERROR_SUCCESS",
-            5: "ERROR_ACCESS_DENIED",
-            13: "ERROR_INVALID_DATA",
-            87: "ERROR_INVALID_PARAMETER",
-            123: "EEROR_INVALID_NAME",
-            1057: "ERROR_INVALID_SERVICE_ACCOUNT",
-            1059: "ERROR_CIRCULAR_DEPENDENCY",
-            1072: "ERROR_SERVICE_MARKED_FOR_DELETE",
-            1078: "ERROR_DUPLICATE_SERVICE_NAME",
-            1115: "ERROR_SHUTDOWN_IN_PROGRESS"
-        }
         opnum = 45
 
         data = server_handle
         data += self._marshal_string(service_name)
-        data += b"\x00" * 2  # why - maybe a null terminator?
-        data += self._marshal_string(display_name, True)
-        data += b"\x00" * 2  # why again - maybe a null terminator?
+        data += self._marshal_string(display_name, unique=True)
         data += struct.pack("<i", desired_access)
         data += struct.pack("<i", service_type)
         data += struct.pack("<i", start_type)
@@ -609,7 +654,7 @@ class SCMRApi(object):
         tag_id = res[0:4]
         service_handle = res[4:24]
         return_code = struct.unpack("<i", res[24:])[0]
-        self._parse_error(return_code, errors, "RCreateServiceWOW64W")
+        self._parse_error(return_code, "RCreateServiceWOW64W")
         return tag_id, service_handle
 
     def _invoke(self, function_name, opnum, data):
@@ -637,47 +682,65 @@ class SCMRApi(object):
         request = self.tree.session.connection.send(ioctl_request,
                                                     sid=session_id,
                                                     tid=tree_id)
-        while True:
-            try:
-                log.info("Receiving svcctl RPC response for %s"
-                         % function_name)
-                resp = self.tree.session.connection.receive(request)
-            except SMBResponseException as exc:
-                # try again if the status is pending
-                if exc.status != NtStatus.STATUS_PENDING:
-                    raise exc
-            else:
-                break
-
+        log.info("Receiving svcctl RPC response for %s" % function_name)
+        resp = self.tree.session.connection.receive(request)
         ioctl_resp = SMB2IOCTLResponse()
         ioctl_resp.unpack(resp['data'].get_value())
         log.debug(str(ioctl_resp))
 
-        pdu_resp = parse_pdu(ioctl_resp['buffer'].get_value())
+        pdu_resp = self._parse_pdu(ioctl_resp['buffer'].get_value(), opnum)
+        return pdu_resp
+
+    def _parse_pdu(self, data, opnum):
+        pdu_resp = parse_pdu(data)
         if not isinstance(pdu_resp, ResponsePDU):
             raise PDUException("Expecting ResponsePDU for opnum %d response "
                                "but got: %s" % (opnum, str(pdu_resp)))
-
         return pdu_resp['stub_data'].get_value()
 
-    def _parse_error(self, return_code, known_errors, function_name):
-        error_string = known_errors.get(return_code, "ERROR_UNKNOWN")
+    def _parse_error(self, return_code, function_name):
+        error_string = "ERROR_UNKNOWN"
+        for error_name, error_val in vars(ScmrReturnValues).items():
+            if isinstance(error_val, int) and error_val == return_code:
+                error_string = error_name
+                break
         if not error_string.startswith("ERROR_SUCCESS"):
             raise SCMRException(function_name, return_code, error_string)
 
-    def _marshal_string(self, string, referent_required=False):
+    def _marshal_string(self, string, unique=False, max_count=None):
+        """
+        Strings are encoding as a UTF-16-LE byte structure and are marshalled
+        in a particular format to send over RPC. The format is as follows
+
+            Referent ID (Int32): A unique ID for the string, we just set to 1
+            Max Count (Int32): If the server can return a value, this is the
+                size that can be returned in the buffer otherwise just the
+                numbers of chars in the input string
+            Offset (Int32): The offset of the string, defaults to 0
+            Actual Count (Int32): The number of chars (not bytes) or the string
+                itself including the NULL terminator
+            Bytes (Bytes): The string encoded as a UTF-16-LE byte string with
+                a NULL terminator
+            Padding (Bytes): The value must align to a 4-byte boundary so this
+                is some NULL bytes to pad the length
+
+        :param string: The string to marshal
+        :param unique: Whether the string is unique and requires an ID
+        :return: A byte string of the marshaled string
+        """
         # return NULL Pointer for a null string
         if not string:
             return b"\x00" * 4
 
+        referent = b"\x00\x00\x00\x01" if unique else b""
         unicode_string = string.encode("utf-16-le") + b"\x00\x00"
-        max_count = struct.pack("<i", int(len(unicode_string) / 2))
+        unicode_count = int(len(unicode_string) / 2)
+        count = struct.pack("<i", unicode_count)
         offset = b"\x00" * 4
-        actual_count = max_count
-        bytes = max_count + offset + actual_count + unicode_string
+        bytes = referent + count + offset + count + unicode_string
 
-        # TODO: understand referent_id more
-        if referent_required:
-            return b"\x00\x00\x00\x01" + bytes
-        else:
-            return bytes
+        # each parameter needs to be aligned at a 4-byte boundary so get the
+        # padding length if necessary
+        mod = len(bytes) % 4
+        padding_len = 0 if mod == 0 else 4 - mod
+        return bytes + (b"\x00" * padding_len)

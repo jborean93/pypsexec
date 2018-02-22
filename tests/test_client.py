@@ -7,6 +7,15 @@ import pytest
 from pypsexec.client import Client
 from pypsexec.exceptions import PAExecException, PypsexecException
 from pypsexec.paexec import ProcessPriority
+from pypsexec.scmr import EnumServiceState, Service, ServiceType, DesiredAccess
+
+from smbprotocol.connection import NtStatus
+from smbprotocol.exceptions import SMBResponseException
+from smbprotocol.open import CreateDisposition, CreateOptions, \
+    DirectoryAccessMask, FileAttributes, FileInformationClass, \
+    ImpersonationLevel, Open, ShareAccess
+from smbprotocol.tree import TreeConnect
+
 
 if sys.version[0] == '2':
     from Queue import Queue
@@ -108,10 +117,8 @@ class TestClientFunctional(object):
         assert actual[1] == b""
         assert actual[2] == 0
 
-    @pytest.mark.skip("Need to find out but it sometimes freezes when the "
-                      "proc is done")
     def test_proc_long_running(self, client):
-        arguments = "Write-Host first; Start-Sleep -Seconds 30; " \
+        arguments = "Write-Host first; Start-Sleep -Seconds 15; " \
                     "Write-Host second"
         actual = client.run_executable("powershell.exe",
                                        arguments=arguments)
@@ -251,7 +258,7 @@ class TestClientFunctional(object):
         assert actual[1] == b""
         assert actual[2] == 0
 
-    def test_proc_with_asyn(self, client):
+    def test_proc_with_async(self, client):
         start_time = time.time()
         actual = client.run_executable("powershell.exe",
                                        arguments="Start-Sleep -Seconds 20",
@@ -263,3 +270,90 @@ class TestClientFunctional(object):
         # this is the pid of the async process so don't know in advance so just
         # make sure it isn't 0
         assert actual[2] != 0
+
+    def test_cleanup_with_older_processes(self, client):
+        # create a new service with different pid and service name
+        username = os.environ['PYPSEXEC_USERNAME']
+        password = os.environ['PYPSEXEC_PASSWORD']
+        new_client = Client(client.server, username, password)
+        new_client.pid = 1234
+        new_client.current_host = "other-host"
+        new_client.service_name = "PAExec-%d-%s"\
+                                  % (new_client.pid, new_client.current_host)
+        new_client._exe_file = "%s.exe" % new_client.service_name
+        new_client._service = Service(new_client.service_name,
+                                      new_client.session)
+
+        new_client.connect()
+        new_client.create_service()
+        new_client.disconnect()
+
+        services, files = self._get_paexec_files_and_services(client)
+        assert len(services) >= 2
+        assert len(files) >= 2
+
+        client.cleanup()
+
+        services, files = self._get_paexec_files_and_services(client)
+        assert len(services) == 0
+        assert len(files) == 0
+
+        # make sure it works on multiple runs
+        client.cleanup()
+
+        services, files = self._get_paexec_files_and_services(client)
+        assert len(services) == 0
+        assert len(files) == 0
+
+        client._service._handle = None
+        client.create_service()
+
+    def _get_paexec_files_and_services(self, client):
+        paexec_services = []
+
+        # need to close and reopen the handle to ensure deletes are processed
+        scmr = client._service._scmr
+        scmr.close_service_handle_w(client._service._scmr_handle)
+        scmr.close()
+        scmr.open()
+
+        sc_desired_access = DesiredAccess.SC_MANAGER_CONNECT | \
+            DesiredAccess.SC_MANAGER_CREATE_SERVICE | \
+            DesiredAccess.SC_MANAGER_ENUMERATE_SERVICE
+        scmr_handle = scmr.open_sc_manager_w(client.server,
+                                             None, sc_desired_access)
+
+        client._service._scmr_handle = scmr_handle
+        services = scmr.enum_services_status_w(scmr_handle,
+                                               ServiceType.
+                                               SERVICE_WIN32_OWN_PROCESS,
+                                               EnumServiceState.
+                                               SERVICE_STATE_ALL)
+        for service in services:
+            if service['service_name'].lower().startswith("paexec"):
+                paexec_services.append(service['service_name'])
+
+        smb_tree = TreeConnect(client.session,
+                               r"\\%s\ADMIN$" % client.connection.server_name)
+        smb_tree.connect()
+
+        share = Open(smb_tree, "")
+        share.open(ImpersonationLevel.Impersonation,
+                   DirectoryAccessMask.FILE_READ_ATTRIBUTES |
+                   DirectoryAccessMask.SYNCHRONIZE |
+                   DirectoryAccessMask.FILE_LIST_DIRECTORY,
+                   FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
+                   ShareAccess.FILE_SHARE_READ | ShareAccess.FILE_SHARE_WRITE |
+                   ShareAccess.FILE_SHARE_DELETE,
+                   CreateDisposition.FILE_OPEN,
+                   CreateOptions.FILE_DIRECTORY_FILE)
+        try:
+            paexec_files = share.query_directory("PAExec-*.exe",
+                                                 FileInformationClass.
+                                                 FILE_NAMES_INFORMATION)
+        except SMBResponseException as exc:
+            if exc.status != NtStatus.STATUS_NO_SUCH_FILE:
+                raise exc
+            paexec_files = []
+
+        return paexec_services, paexec_files
