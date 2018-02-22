@@ -139,7 +139,7 @@ from pypsexec.client import Client
 c = Client("server", username="username", password="password")
 
 # set encrypt=False for Windows 7, Server 2008
-c = Client("server", username="username", password="password")
+c = Client("server", username="username", password="password", encrypt=False)
 
 # if Kerberos is available, this will use the default credentials in the
 # credential cache
