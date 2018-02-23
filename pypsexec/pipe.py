@@ -27,13 +27,48 @@ else:
 log = logging.getLogger(__name__)
 
 
-def open_pipe(tree, name, access_mask):
+def open_pipe(tree, name, access_mask, fsctl_wait=False):
+    """
+    Opened the requested pipe with the access mask specified. Will attempt
+    to connect 3 times before failing in case the pipe's don't exist at the
+    time.
+
+    :param tree: The SMB TreeConnect of IPC$ to connect to
+    :param name: The name of the pipe to connect to
+    :param access_mask: The access mask to apply to the Open
+    :param fsctl_wait: Runs the FSCTL_PIPE_WAIT command over an
+        SMB2IOCTLRequest
+    :return: A connected Open() object of the pipe
+    """
     log.info("Creating SMB Open for pipe: %s" % name)
     pipe = Open(tree, name)
 
     # try 3 times to connect in case the PAExec service didn't come up
+    connected = False
     for i in range(0, 3):
         try:
+            if fsctl_wait:
+                wait_pipe = SMB2IOCTLRequest()
+                wait_pipe['ctl_code'] = CtlCode.FSCTL_PIPE_WAIT
+                wait_pipe['file_id'] = b"\xff" * 16
+                wait_pipe['flags'] = IOCTLFlags.SMB2_0_IOCTL_IS_FSCTL
+
+                fsctl_data = FSCTLPipeWait()
+                fsctl_data['name'] = name.encode('utf-16-le')
+                wait_pipe['buffer'] = fsctl_data
+
+                log.info("Sending FSCTL_PIPE_WAIT for pipe %s" % name)
+                log.debug(str(fsctl_data))
+                request = tree.session.connection.send(
+                    wait_pipe,
+                    sid=tree.session.session_id,
+                    tid=tree.tree_connect_id
+                )
+
+                log.info("Receiving FSCTL_PIPE_WAIT response for pipe: %s"
+                         % name)
+                tree.session.connection.receive(request)
+
             pipe.open(ImpersonationLevel.Impersonation,
                       access_mask,
                       FileAttributes.FILE_ATTRIBUTE_NORMAL,
@@ -44,14 +79,16 @@ def open_pipe(tree, name, access_mask):
         except SMBResponseException as exc:
             if exc.status != NtStatus.STATUS_OBJECT_NAME_NOT_FOUND:
                 raise exc
-            elif i == 2:
-                raise PypsexecException("Timeout while waiting for pipe %s "
-                                        "to exist" % name)
             log.warning("Failing to open pipe: %s - Attempt %d"
                         % (name, i + 1))
             time.sleep(1)
         else:
+            connected = True
             break
+
+    if not connected:
+        raise PypsexecException("Timeout while waiting for pipe %s to exist"
+                                % name)
 
     return pipe
 
@@ -95,33 +132,8 @@ class _NamedPipe(threading.Thread):
         self.connection = tree.session.connection
         self.sid = tree.session.session_id
         self.tid = tree.tree_connect_id
-        self.tree = tree
-        self.pipe = None
-        self._connect_pipe()
-
-    def _connect_pipe(self):
-        """
-        Waits until the NamedPipe requested is available and connect to it
-        so it is ready to send/receive data
-        """
-        wait_pipe = SMB2IOCTLRequest()
-        wait_pipe['ctl_code'] = CtlCode.FSCTL_PIPE_WAIT
-        wait_pipe['file_id'] = b"\xff" * 16
-        wait_pipe['flags'] = IOCTLFlags.SMB2_0_IOCTL_IS_FSCTL
-
-        fsctl_data = FSCTLPipeWait()
-        fsctl_data['name'] = self.name.encode('utf-16-le')
-        wait_pipe['buffer'] = fsctl_data
-
-        log.info("Sending FSCTL_PIPE_WAIT for pipe %s" % self.name)
-        log.debug(str(fsctl_data))
-        request = self.connection.send(wait_pipe, sid=self.sid, tid=self.tid)
-
-        log.info("Receiving FSCTL_PIPE_WAIT response for pipe: %s" % self.name)
-        self.connection.receive(request)
-
-        # now open the Pipe
-        self.pipe = open_pipe(self.tree, self.name, self.ACCESS_MASK)
+        self.pipe = open_pipe(tree, name, self.ACCESS_MASK,
+                              fsctl_wait=True)
 
 
 class InputPipe(_NamedPipe):
