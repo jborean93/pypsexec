@@ -12,7 +12,7 @@ from smbprotocol.open import Open
 from smbprotocol.structure import IntField, EnumField, FlagField, Structure
 from smbprotocol.tree import TreeConnect
 
-from pypsexec.exceptions import SCMRException
+from pypsexec.exceptions import PypsexecException, SCMRException
 from pypsexec.rpc import BindAckPDU, BindPDU, ContextElement, \
     DataRepresentationFormat, PDUException, parse_pdu, \
     PFlags, RequestPDU, ResponsePDU, SyntaxIdElement
@@ -230,16 +230,15 @@ class Service(object):
         """
         self.name = name
         self.smb_session = smb_session
-        self.exists = None
-        self.status = None
 
         self._handle = None
         self._scmr = None
         self._scmr_handle = None
 
     def open(self):
-        if self._handle:
-            log.debug("Handle for service %s is already open" % self.name)
+        if self._scmr:
+            log.debug("Handle for SCMR on %s is already open"
+                      % self.smb_session.connection.server_name)
             return
 
         # connect to the SCMR Endpoint
@@ -255,34 +254,10 @@ class Service(object):
             DesiredAccess.SC_MANAGER_ENUMERATE_SERVICE
         )
 
-        # connect to the desired service in question
-        desired_access = DesiredAccess.SERVICE_QUERY_STATUS | \
-            DesiredAccess.SERVICE_START | \
-            DesiredAccess.SERVICE_STOP | \
-            DesiredAccess.DELETE
-        try:
-            log.info("Opening handle for Service %s" % self.name)
-            self._handle = self._scmr.open_service_w(self._scmr_handle,
-                                                     self.name,
-                                                     desired_access)
-        except SCMRException as exc:
-            # 1060 is service does not exist
-            if exc.return_code == 1060:
-                log.debug("Could not open handle for service %s as it did "
-                          "not exist" % self.name)
-                self.exists = False
-            else:
-                raise exc
-        else:
-            self.exists = True
-            self.refresh()
-
     def close(self):
         if self._handle:
             log.info("Closing Service handle for service %s" % self.name)
             self._scmr.close_service_handle_w(self._handle)
-            self.exists = None
-            self.status = None
             self._handle = None
 
         if self._scmr_handle:
@@ -293,51 +268,39 @@ class Service(object):
         if self._scmr:
             log.info("Closing bindings for SCMR")
             self._scmr.close()
-            self._scmr = False
-
-    def refresh(self):
-        """
-        Refreshes the service details, currently only exists and status
-        are set.
-        """
-        if not self._handle:
-            log.debug("Need to open handle to service %s before refreshing"
-                      % self.name)
-            self.open()
-
-        if not self.exists:
-            return
-
-        service_status = self._scmr.query_service_status(self._handle)
-        self.status = {
-            CurrentState.SERVICE_STOPPED: "stopped",
-            CurrentState.SERVICE_START_PENDING: "start_pending",
-            CurrentState.SERVICE_STOP_PENDING: "stop_pending",
-            CurrentState.SERVICE_RUNNING: "running",
-            CurrentState.SERVICE_CONTINUE_PENDING: "continue_pending",
-            CurrentState.SERVICE_PAUSE_PENDING: "pause_pending",
-            CurrentState.SERVICE_PAUSED: "paused"
-        }[service_status['current_state'].get_value()]
+            self._scmr = None
 
     def start(self):
+        self._open_service()
+        if self._handle is None:
+            raise PypsexecException("Cannot start service %s as it does not "
+                                    "exist" % self.name)
+
         try:
             self._scmr.start_service_w(self._handle)
         except SCMRException as exc:
             if exc.return_code != \
                     ScmrReturnValues.ERROR_SERVICE_ALREADY_RUNNING:
                 raise exc
-        self.status = "running"
 
     def stop(self):
+        self._open_service()
+        if self._handle is None:
+            raise PypsexecException("Cannot stop service %s as it does not "
+                                    "exist" % self.name)
+
         try:
             self._scmr.control_service(self._handle,
                                        ControlCode.SERVICE_CONTROL_STOP)
         except SCMRException as exc:
             if exc.return_code != ScmrReturnValues.ERROR_SERVICE_NOT_ACTIVE:
                 raise exc
-        self.status = "stopped"
 
     def create(self, path):
+        self._open_service()
+        if self._handle:
+            return
+
         self._handle = self._scmr.create_service_wow64_w(
             self._scmr_handle,
             self.name,
@@ -354,13 +317,36 @@ class Service(object):
             None,
             None
         )[1]
-        self.exists = True
-        self.status = "running"
 
     def delete(self):
+        self._open_service()
+        if self._handle is None:
+            return
+
         self.stop()
         self._scmr.delete_service(self._handle)
-        self.close()
+
+    def _open_service(self):
+        if self._handle:
+            return self._handle
+
+        # connect to the desired service in question
+        desired_access = DesiredAccess.SERVICE_QUERY_STATUS | \
+            DesiredAccess.SERVICE_START | \
+            DesiredAccess.SERVICE_STOP | \
+            DesiredAccess.DELETE
+        try:
+            log.info("Opening handle for Service %s" % self.name)
+            self._handle = self._scmr.open_service_w(self._scmr_handle,
+                                                     self.name,
+                                                     desired_access)
+        except SCMRException as exc:
+            if exc.return_code != \
+                    ScmrReturnValues.ERROR_SERVICE_DOES_NOT_EXIST:
+                raise exc
+            else:
+                log.debug("Could not open handle for service %s as it did "
+                          "not exist" % self.name)
 
 
 class SCMRApi(object):

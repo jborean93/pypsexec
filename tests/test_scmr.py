@@ -12,7 +12,7 @@ from smbprotocol.open import CreateDisposition, CreateOptions, \
     ShareAccess
 from six import string_types
 
-from pypsexec.exceptions import PDUException, SCMRException
+from pypsexec.exceptions import PDUException, PypsexecException, SCMRException
 from pypsexec.paexec import PAEXEC_DATA
 from pypsexec.rpc import DataRepresentationFormat, FaultPDU, ResponsePDU
 from pypsexec.scmr import ControlsAccepted, CurrentState, DesiredAccess, \
@@ -204,94 +204,97 @@ class TestServiceFunctional(object):
     def _create_dummy_stopped_service(self, session):
         service = Service("pypsexectest", session)
         service.open()
-
-        if service.exists:
-            service.delete()
-
         service.create("C:\\Windows\\PAExec.exe -service")
-        service.refresh()
-
-        if service.status != "stopped":
-            service.stop()
+        service.close()
         return service
 
     def test_open_service_missing(self, session):
         service = Service("missing-service", session)
         service.open()
-        assert not service.exists
-        assert service.status is None
+        assert service._handle is None
+
+        with pytest.raises(PypsexecException) as exc:
+            service.start()
+        assert str(exc.value) == "Cannot start service missing-service as " \
+                                 "it does not exist"
+
+        with pytest.raises(PypsexecException) as exc:
+            service.stop()
+        assert str(exc.value) == "Cannot stop service missing-service as " \
+                                 "it does not exist"
         service.close()
 
     def test_open_service_existing(self, session):
         service = self._create_dummy_stopped_service(session)
         try:
             service.open()
-            assert service.exists
-            assert service.status == "stopped"
+            service._open_service()
+            assert service._handle is not None
         finally:
             service.delete()
             service.close()
 
     def test_open_service_with_invalid_name(self, session):
         service = Service(b"\x00 a service".decode('utf-8'), session)
+        service.open()
         with pytest.raises(SCMRException) as exc:
-            service.open()
+            service.stop()
         service.close()
         assert str(exc.value) == "Exception calling ROpenServiceW. " \
                                  "Code: 123, Msg: ERROR_INVALID_NAME"
 
-    def test_refresh_service_without_an_open(self, session):
-        service = self._create_dummy_stopped_service(session)
-        service.close()
-
-        try:
-            service = Service("pypsexectest", session)
-            assert service.exists is None
-            assert service.status is None
-            service.refresh()
-            assert service.exists
-            assert service.status == "stopped"
-        finally:
-            service.delete()
-            service.close()
-
-    def test_refresh_service_that_does_not_exist(self, session):
-        service = Service("missing-service", session)
-        service.open()
-        assert not service.exists
-        service.refresh()
-        assert not service.exists
-        service.close()
-
     def test_start_an_already_started_service(self, session):
         service = self._create_dummy_stopped_service(session)
+        service.open()
+
         try:
             service.start()
-            assert service.status == "running"
             service.start()
-            assert service.status == "running"
         finally:
             service.delete()
             service.close()
 
-    def test_create_dummy_service(self, session):
+    def test_manage_dummy_service(self, session):
         service = self._create_dummy_stopped_service(session)
+        service.open()
+        scmr = service._scmr
+
         try:
-            service.refresh()
-            assert service.exists
-            assert service.status == "stopped"
+            # test multiple calls to open
+            expected = service._scmr_handle
+            service.open()
+            actual = service._scmr_handle
+            assert actual == expected
 
-            # start the service
+            # start the test baseline as a stopped service
+            service.stop()
+            actual = scmr.query_service_status(service._handle)
+            assert actual['current_state'].get_value() == \
+                CurrentState.SERVICE_STOPPED
+
+            # stop a stopped service
+            service.stop()
+            actual = scmr.query_service_status(service._handle)
+            assert actual['current_state'].get_value() == \
+                CurrentState.SERVICE_STOPPED
+
+            # start a stopped service
             service.start()
-            assert service.status == "running"
+            actual = scmr.query_service_status(service._handle)
+            assert actual['current_state'].get_value() == \
+                CurrentState.SERVICE_RUNNING
 
-            # stop the service
-            service.stop()
-            assert service.status == "stopped"
+            # start a started service
+            service.start()
+            actual = scmr.query_service_status(service._handle)
+            assert actual['current_state'].get_value() == \
+                CurrentState.SERVICE_RUNNING
 
-            # test out stopping an already stopped service
+            # stop a started service
             service.stop()
-            assert service.status == "stopped"
+            actual = scmr.query_service_status(service._handle)
+            assert actual['current_state'].get_value() == \
+                CurrentState.SERVICE_STOPPED
         finally:
             service.delete()
             service.close()

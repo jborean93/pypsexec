@@ -89,7 +89,6 @@ class TestClientFunctional(object):
                 client.create_service()
                 yield client
             finally:
-                client.remove_service()
                 client.disconnect()
         else:
             pytest.skip("PYPSEXEC_SERVER, PYPSEXEC_USERNAME, PYPSEXEC_PASSWORD"
@@ -97,8 +96,6 @@ class TestClientFunctional(object):
                         "tests will be skipped")
 
     def test_create_service_that_already_exists(self, client):
-        # ensure this can be run multiple times
-        client.create_service()
         actual = client.run_executable("whoami.exe")
         assert len(actual[0]) > 0
         assert actual[1] == b""
@@ -275,55 +272,55 @@ class TestClientFunctional(object):
         # create a new service with different pid and service name
         username = os.environ['PYPSEXEC_USERNAME']
         password = os.environ['PYPSEXEC_PASSWORD']
-        new_client = Client(client.server, username, password)
-        new_client.pid = 1234
-        new_client.current_host = "other-host"
-        new_client.service_name = "PAExec-%d-%s"\
-                                  % (new_client.pid, new_client.current_host)
-        new_client._exe_file = "%s.exe" % new_client.service_name
-        new_client._service = Service(new_client.service_name,
-                                      new_client.session)
+        new_client = self._get_new_generic_client(client)
+        new_client.connect()
+        new_client.create_service()
 
+        # ensure a single call to remove_service deletes the service and files
+        new_client.remove_service()
+        new_client.disconnect()
+
+        client, services, files = self._get_paexec_files_and_services(client)
+        assert len(services) >= 1
+        assert len(files) >= 1
+
+        # now create a client but don't cleanup afterwards
+        new_client = self._get_new_generic_client(client)
         new_client.connect()
         new_client.create_service()
         new_client.disconnect()
 
-        services, files = self._get_paexec_files_and_services(client)
+        client, services, files = self._get_paexec_files_and_services(client)
         assert len(services) >= 2
         assert len(files) >= 2
 
         client.cleanup()
 
-        services, files = self._get_paexec_files_and_services(client)
+        client, services, files = self._get_paexec_files_and_services(client)
         assert len(services) == 0
         assert len(files) == 0
 
         # make sure it works on multiple runs
         client.cleanup()
 
-        services, files = self._get_paexec_files_and_services(client)
+        client, services, files = self._get_paexec_files_and_services(client)
         assert len(services) == 0
         assert len(files) == 0
 
-        client._service._handle = None
-        client.create_service()
-
     def _get_paexec_files_and_services(self, client):
+        server = os.environ['PYPSEXEC_SERVER']
+        username = os.environ['PYPSEXEC_USERNAME']
+        password = os.environ['PYPSEXEC_PASSWORD']
         paexec_services = []
 
-        # need to close and reopen the handle to ensure deletes are processed
+        # need to close and reopen the connection to ensure deletes are
+        # processed
+        client.disconnect()
+        client = Client(server, username=username, password=password)
+        client.connect()
         scmr = client._service._scmr
-        scmr.close_service_handle_w(client._service._scmr_handle)
-        scmr.close()
-        scmr.open()
+        scmr_handle = client._service._scmr_handle
 
-        sc_desired_access = DesiredAccess.SC_MANAGER_CONNECT | \
-            DesiredAccess.SC_MANAGER_CREATE_SERVICE | \
-            DesiredAccess.SC_MANAGER_ENUMERATE_SERVICE
-        scmr_handle = scmr.open_sc_manager_w(client.server,
-                                             None, sc_desired_access)
-
-        client._service._scmr_handle = scmr_handle
         services = scmr.enum_services_status_w(scmr_handle,
                                                ServiceType.
                                                SERVICE_WIN32_OWN_PROCESS,
@@ -356,4 +353,17 @@ class TestClientFunctional(object):
                 raise exc
             paexec_files = []
 
-        return paexec_services, paexec_files
+        return client, paexec_services, paexec_files
+
+    def _get_new_generic_client(self, client):
+        username = os.environ['PYPSEXEC_USERNAME']
+        password = os.environ['PYPSEXEC_PASSWORD']
+        new_client = Client(client.server, username, password)
+        new_client.pid = 1234
+        new_client.current_host = "other-host"
+        new_client.service_name = "PAExec-%d-%s"\
+                                  % (new_client.pid, new_client.current_host)
+        new_client._exe_file = "%s.exe" % new_client.service_name
+        new_client._service = Service(new_client.service_name,
+                                      new_client.session)
+        return new_client

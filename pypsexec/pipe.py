@@ -1,4 +1,5 @@
 import binascii
+import time
 import logging
 import os
 import sys
@@ -11,6 +12,8 @@ from smbprotocol.open import CreateDisposition, CreateOptions, \
     FileAttributes, FilePipePrinterAccessMask, ImpersonationLevel, Open
 from smbprotocol.structure import BoolField, BytesField, IntField, Structure
 
+from pypsexec.exceptions import PypsexecException
+
 try:
     from collections import OrderedDict
 except ImportError:  # pragma: no cover
@@ -22,6 +25,35 @@ else:
     from queue import Queue
 
 log = logging.getLogger(__name__)
+
+
+def open_pipe(tree, name, access_mask):
+    log.info("Creating SMB Open for pipe: %s" % name)
+    pipe = Open(tree, name)
+
+    # try 3 times to connect in case the PAExec service didn't come up
+    for i in range(0, 3):
+        try:
+            pipe.open(ImpersonationLevel.Impersonation,
+                      access_mask,
+                      FileAttributes.FILE_ATTRIBUTE_NORMAL,
+                      0,
+                      CreateDisposition.FILE_OPEN,
+                      CreateOptions.FILE_NON_DIRECTORY_FILE |
+                      CreateOptions.FILE_SYNCHRONOUS_IO_NONALERT)
+        except SMBResponseException as exc:
+            if exc.status != NtStatus.STATUS_OBJECT_NAME_NOT_FOUND:
+                raise exc
+            elif i == 2:
+                raise PypsexecException("Timeout while waiting for pipe %s "
+                                        "to exist" % name)
+            log.warning("Failing to open pipe: %s - Attempt %d"
+                        % (name, i + 1))
+            time.sleep(1)
+        else:
+            break
+
+    return pipe
 
 
 class FSCTLPipeWait(Structure):
@@ -63,7 +95,8 @@ class _NamedPipe(threading.Thread):
         self.connection = tree.session.connection
         self.sid = tree.session.session_id
         self.tid = tree.tree_connect_id
-        self.pipe = Open(tree, name)
+        self.tree = tree
+        self.pipe = None
         self._connect_pipe()
 
     def _connect_pipe(self):
@@ -88,14 +121,7 @@ class _NamedPipe(threading.Thread):
         self.connection.receive(request)
 
         # now open the Pipe
-        log.info("Creating SMB Open for pipe: %s" % self.name)
-        self.pipe.open(ImpersonationLevel.Impersonation,
-                       self.ACCESS_MASK,
-                       FileAttributes.FILE_ATTRIBUTE_NORMAL,
-                       0,
-                       CreateDisposition.FILE_OPEN,
-                       CreateOptions.FILE_NON_DIRECTORY_FILE |
-                       CreateOptions.FILE_SYNCHRONOUS_IO_NONALERT)
+        self.pipe = open_pipe(self.tree, self.name, self.ACCESS_MASK)
 
 
 class InputPipe(_NamedPipe):
