@@ -320,21 +320,22 @@ class Service(object):
         }[service_status['current_state'].get_value()]
 
     def start(self):
-        if self.status == "running":
-            log.debug("No need to start the service %s as it is already "
-                      "started" % self.name)
-            return
-        self._scmr.start_service_w(self._handle)
-        self.refresh()
+        try:
+            self._scmr.start_service_w(self._handle)
+        except SCMRException as exc:
+            if exc.return_code != \
+                    ScmrReturnValues.ERROR_SERVICE_ALREADY_RUNNING:
+                raise exc
+        self.status = "running"
 
     def stop(self):
-        if self.status == "stopped":
-            log.debug("No need to stop the servie %s as it is already stopped"
-                      % self.name)
-            return
-        self._scmr.control_service(self._handle,
-                                   ControlCode.SERVICE_CONTROL_STOP)
-        self.refresh()
+        try:
+            self._scmr.control_service(self._handle,
+                                       ControlCode.SERVICE_CONTROL_STOP)
+        except SCMRException as exc:
+            if exc.return_code != ScmrReturnValues.ERROR_SERVICE_NOT_ACTIVE:
+                raise exc
+        self.status = "stopped"
 
     def create(self, path):
         self._handle = self._scmr.create_service_wow64_w(
@@ -354,6 +355,7 @@ class Service(object):
             None
         )[1]
         self.exists = True
+        self.status = "running"
 
     def delete(self):
         self.stop()

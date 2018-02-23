@@ -96,7 +96,7 @@ class TestClientFunctional(object):
                         " environment variables were not set. Integration "
                         "tests will be skipped")
 
-    def test_create_srvice_that_already_exists(self, client):
+    def test_create_service_that_already_exists(self, client):
         # ensure this can be run multiple times
         client.create_service()
         actual = client.run_executable("whoami.exe")

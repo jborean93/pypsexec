@@ -31,12 +31,13 @@ log = logging.getLogger(__name__)
 class Client(object):
 
     def __init__(self, server, username=None, password=None, port=445,
-                 encrypt=True):
+                 encrypt=True, timeout=60):
         self.server = server
         self.port = port
         self.pid = os.getpid()
         self.current_host = socket.gethostname()
-        self.connection = Connection(uuid.uuid4(), server, port)
+        self.connection = Connection(uuid.uuid4(), server, port,
+                                     timeout=timeout)
         self.session = Session(self.connection, username, password,
                                require_encryption=encrypt)
 
@@ -167,7 +168,6 @@ class Client(object):
                     svc = Service(service['service_name'], self.session)
                     svc.open()
                     svc.delete()
-                    svc.close()
         finally:
             scmr.close_service_handle_w(scmr_handle)
             scmr.close()
