@@ -234,7 +234,7 @@ try:
     # run command asynchronously (in background), the rc is the PID of the spawned service
     stdout, stderr, rc = c.run_executable("longrunning.exe",
                                           arguments="/s other args",
-                                          async=True)
+                                          asynchronous=True)
 
     # run whoami.exe as a specific user
     stdout, stderr, rc = c.run_executable("whoami",
@@ -275,7 +275,6 @@ options that can be set to control the process. These args are;
 * `password`: The password for `username`. Can be `None` if `python-gssapi` is installed and a ticket has been granted for the user specified
 * `port`: Override the default port of `445` when connecting to the server
 * `encrypt`: Whether to encrypt the messages or not, default is `True`. Server 2008, 2008 R2 and Windows 7 hosts do not support SMB Encryption and need this to be set to `False`
-* `timeout`: Override the default timeout of 60 seconds when waiting for a response from the SMB server
 
 
 ### Run Executable Options
@@ -286,9 +285,9 @@ how the remote process will work. These args are;
 * `executable`: (string) The path to the executable to be run
 * `arguments`: (string) Arguments for the executable
 * `processors`: (list<int>) A list of processor numbers that the process can run on
-* `async`: (bool) Doesn't wait until the process is complete before returning. The `rc` returned by the function is the `PID` of the async process, default is `False`
+* `asynchronous`: (bool) Doesn't wait until the process is complete before returning. The `rc` returned by the function is the `PID` of the async process, default is `False`
 * `load_profile`: (bool) Load the user's profile, default is `True`
-* `session_to_interact_with`: (int) The session ID to display the interactive process when `interactive=True`, default is `0`
+* `interactive_session`: (int) The session ID to display the interactive process when `interactive=True`, default is `0`
 * `interactive`: (bool) Runs the process as an interactive process. The stdout and stderr buffers will be `None` if `True`, default `False`
 * `run_elevated`: (bool) When `username` is defined, will elevated permissions, default `False`
 * `run_limited`: (bool) When `username` is defined, will run the process under limited permissions, default `False`

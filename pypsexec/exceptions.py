@@ -5,7 +5,7 @@ class PypsexecException(Exception):
     pass
 
 
-class PAExecException(Exception):
+class PAExecException(PypsexecException):
 
     @property
     def msg_id(self):
@@ -26,7 +26,7 @@ class PAExecException(Exception):
         return self.message
 
 
-class SCMRException(Exception):
+class SCMRException(PypsexecException):
 
     @property
     def function(self):
@@ -49,5 +49,5 @@ class SCMRException(Exception):
         return self.message
 
 
-class PDUException(Exception):
+class PDUException(PypsexecException):
     pass

@@ -217,9 +217,9 @@ class TestPAExecSettingsMsg(object):
         assert not actual['copy_files'].get_value()
         assert not actual['force_copy'].get_value()
         assert not actual['copy_if_newer_or_higher_ver'].get_value()
-        assert not actual['async'].get_value()
+        assert not actual['asynchronous'].get_value()
         assert not actual['dont_load_profile'].get_value()
-        assert actual['session_to_interact_with'].get_value() == 0
+        assert actual['interactive_session'].get_value() == 0
         assert actual['interactive'].get_value()
         assert not actual['run_elevated'].get_value()
         assert not actual['run_limited'].get_value()
@@ -468,9 +468,9 @@ class TestPAExecSettingsBuffer(object):
         assert not actual['copy_files'].get_value()
         assert not actual['force_copy'].get_value()
         assert not actual['copy_if_newer_or_higher_ver'].get_value()
-        assert not actual['async'].get_value()
+        assert not actual['asynchronous'].get_value()
         assert not actual['dont_load_profile'].get_value()
-        assert actual['session_to_interact_with'].get_value() == 0
+        assert actual['interactive_session'].get_value() == 0
         assert actual['interactive'].get_value()
         assert not actual['run_elevated'].get_value()
         assert not actual['run_limited'].get_value()

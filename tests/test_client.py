@@ -7,7 +7,7 @@ import pytest
 from pypsexec.client import Client
 from pypsexec.exceptions import PAExecException, PypsexecException
 from pypsexec.paexec import ProcessPriority
-from pypsexec.scmr import EnumServiceState, Service, ServiceType, DesiredAccess
+from pypsexec.scmr import EnumServiceState, Service, ServiceType
 
 from smbprotocol.connection import NtStatus
 from smbprotocol.exceptions import SMBResponseException
@@ -100,12 +100,14 @@ class TestClientFunctional(object):
         assert len(actual[0]) > 0
         assert actual[1] == b""
         assert actual[2] == 0
+        time.sleep(1)
 
     def test_proc_with_executable(self, client):
         actual = client.run_executable("whoami.exe")
         assert len(actual[0]) > 0
         assert actual[1] == b""
         assert actual[2] == 0
+        time.sleep(1)
 
     def test_proc_with_args(self, client):
         actual = client.run_executable("cmd.exe",
@@ -113,6 +115,7 @@ class TestClientFunctional(object):
         assert actual[0] == b"hello world\r\n"
         assert actual[1] == b""
         assert actual[2] == 0
+        time.sleep(1)
 
     def test_proc_long_running(self, client):
         arguments = "Write-Host first; Start-Sleep -Seconds 15; " \
@@ -122,6 +125,7 @@ class TestClientFunctional(object):
         assert actual[0] == b"first\nsecond\n"
         assert actual[1] == b""
         assert actual[2] == 0
+        time.sleep(1)
 
     def test_proc_with_stderr(self, client):
         arguments = "/c echo first && echo second 1>&2 && echo third"
@@ -130,6 +134,7 @@ class TestClientFunctional(object):
         assert actual[0] == b"first \r\nthird\r\n"
         assert actual[1] == b"second  \r\n"
         assert actual[2] == 0
+        time.sleep(1)
 
     def test_proc_with_exit_code(self, client):
         actual = client.run_executable("cmd.exe",
@@ -137,6 +142,7 @@ class TestClientFunctional(object):
         assert actual[0] == b""
         assert actual[1] == b""
         assert actual[2] == 10
+        time.sleep(1)
 
     def test_proc_limit_processor(self, client):
         actual = client.run_executable("powershell.exe",
@@ -145,6 +151,7 @@ class TestClientFunctional(object):
         assert actual[0] == b"hello\n"
         assert actual[1] == b""
         assert actual[2] == 0
+        time.sleep(1)
 
     def test_proc_dont_load_profile(self, client):
         actual = client.run_executable("powershell.exe",
@@ -153,6 +160,7 @@ class TestClientFunctional(object):
         assert actual[0] == b"done\n"
         assert actual[1] == b""
         assert actual[2] == 0
+        time.sleep(1)
 
     def test_proc_interactive(self, client):
         actual = client.run_executable("powershell.exe",
@@ -161,6 +169,7 @@ class TestClientFunctional(object):
         assert actual[0] is None
         assert actual[1] is None
         assert actual[2] == 0
+        time.sleep(1)
 
     def test_proc_run_as_system(self, client):
         actual = client.run_executable("whoami.exe",
@@ -168,6 +177,7 @@ class TestClientFunctional(object):
         assert actual[0] == b"nt authority\\system\r\n"
         assert actual[1] == b""
         assert actual[2] == 0
+        time.sleep(1)
 
     def test_run_specific_user(self, client):
         username = os.environ['PYPSEXEC_USERNAME']
@@ -181,6 +191,7 @@ class TestClientFunctional(object):
         # assert b"Medium Mandatory Level" in actual[0]
         assert actual[1] == b""
         assert actual[2] == 0
+        time.sleep(1)
 
     def test_run_invalid_user(self, client):
         with pytest.raises(PAExecException) as exc:
@@ -203,6 +214,7 @@ class TestClientFunctional(object):
         assert b"High Mandatory Level" in actual[0]
         assert actual[1] == b""
         assert actual[2] == 0
+        time.sleep(1)
 
     def test_proc_run_limited(self, client):
         username = os.environ['PYPSEXEC_USERNAME']
@@ -217,6 +229,7 @@ class TestClientFunctional(object):
         # assert b"Medium Mandatory Level" in actual[0]
         assert actual[1] == b""
         assert actual[2] == 0
+        time.sleep(1)
 
     def test_proc_with_working_dir(self, client):
         actual = client.run_executable("cmd.exe",
@@ -225,6 +238,7 @@ class TestClientFunctional(object):
         assert actual[0] == b"C:\\Windows\r\n"
         assert actual[1] == b""
         assert actual[2] == 0
+        time.sleep(1)
 
     def test_proc_with_higher_priority(self, client):
         actual = client.run_executable("powershell.exe",
@@ -234,6 +248,7 @@ class TestClientFunctional(object):
         assert actual[0] == b"hi\n"
         assert actual[1] == b""
         assert actual[2] == 0
+        time.sleep(1)
 
     def test_proc_with_timeout(self, client):
         start_time = time.time()
@@ -246,6 +261,7 @@ class TestClientFunctional(object):
         assert actual[0] == b""
         assert actual[1] == b""
         assert actual[2] == 4294967286  # -10 PAExec error (timeout expired)
+        time.sleep(1)
 
     def test_proc_with_stdin(self, client):
         actual = client.run_executable("powershell.exe",
@@ -254,12 +270,13 @@ class TestClientFunctional(object):
         assert actual[0] == b"input\n"
         assert actual[1] == b""
         assert actual[2] == 0
+        time.sleep(1)
 
     def test_proc_with_async(self, client):
         start_time = time.time()
         actual = client.run_executable("powershell.exe",
                                        arguments="Start-Sleep -Seconds 20",
-                                       async=True)
+                                       asynchronous=True)
         actual_time = time.time() - start_time
         assert int(actual_time) < 5
         assert actual[0] is None
@@ -267,6 +284,7 @@ class TestClientFunctional(object):
         # this is the pid of the async process so don't know in advance so just
         # make sure it isn't 0
         assert actual[2] != 0
+        time.sleep(1)
 
     def test_cleanup_with_older_processes(self, client):
         # create a new service with different pid and service name

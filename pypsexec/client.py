@@ -30,13 +30,12 @@ log = logging.getLogger(__name__)
 class Client(object):
 
     def __init__(self, server, username=None, password=None, port=445,
-                 encrypt=True, timeout=60):
+                 encrypt=True):
         self.server = server
         self.port = port
         self.pid = os.getpid()
         self.current_host = socket.gethostname()
-        self.connection = Connection(uuid.uuid4(), server, port,
-                                     timeout=timeout)
+        self.connection = Connection(uuid.uuid4(), server, port)
         self.session = Session(self.connection, username, password,
                                require_encryption=encrypt)
 
@@ -54,10 +53,10 @@ class Client(object):
                  % self._unique_id)
         self._service = Service(self.service_name, self.session)
 
-    def connect(self):
+    def connect(self, timeout=60):
         log.info("Setting up SMB Connection to %s:%d"
                  % (self.server, self.port))
-        self.connection.connect()
+        self.connection.connect(timeout=timeout)
         log.info("Authenticating SMB Session")
         self.session.connect()
         log.info("Opening handle to SCMR and PAExec service")
@@ -170,8 +169,8 @@ class Client(object):
             self._delete_file(smb_tree, file_name)
 
     def run_executable(self, executable, arguments=None, processors=None,
-                       async=False, load_profile=True,
-                       session_to_interact_with=0, interactive=False,
+                       asynchronous=False, load_profile=True,
+                       interactive_session=0, interactive=False,
                        run_elevated=False, run_limited=False, username=None,
                        password=None, use_system_account=False,
                        working_dir=None, show_ui_on_win_logon=False,
@@ -193,13 +192,13 @@ class Client(object):
         :param arguments: (String) Arguments to run with the executable
         :param processors: (List<Int>) The processors that the process can run
             on, default is all the processors
-        :param async: (Bool) Whether to run the process and not wait for the
-            output, it will continue to run in the background. The stdout and
-            stderr return value will be None and the rc is not reflective of
-            the running process
+        :param asynchronous: (Bool) Whether to run the process and not wait for
+            the output, it will continue to run in the background. The stdout
+            and stderr return value will be None and the rc is not reflective
+            of the running process
         :param load_profile: (Bool) Whether to load the user profile, default
             is True
-        :param session_to_interact_with: (Int) The session id that an
+        :param interactive_session: (Int) The session id that an
             interactive process will run on, use with interactive=True to
             run a process on an existing session
         :param interactive: (Bool) Whether to run on an interative session or
@@ -249,9 +248,9 @@ class Client(object):
 
         settings = PAExecSettingsBuffer()
         settings['processors'] = processors if processors else []
-        settings['async'] = async
+        settings['asynchronous'] = asynchronous
         settings['dont_load_profile'] = not load_profile
-        settings['session_to_interact_with'] = session_to_interact_with
+        settings['interactive_session'] = interactive_session
         settings['interactive'] = interactive
         settings['run_elevated'] = run_elevated
         settings['run_limited'] = run_limited
@@ -303,7 +302,7 @@ class Client(object):
         log.debug(str(start_msg))
         main_pipe.write(start_msg.pack(), 0)
 
-        if not interactive and not async:
+        if not interactive and not asynchronous:
             # create a pipe for stdout, stderr, and stdin and run in a separate
             # thread
             log.info("Connecting to remote pipes to retrieve output")
@@ -332,7 +331,7 @@ class Client(object):
         exe_result_raw = main_pipe.read(0, 1024)
         log.info("Results read of PAExec process")
 
-        if not interactive and not async:
+        if not interactive and not asynchronous:
             log.info("Closing PAExec std* pipes")
             stdout_pipe.close()
             stderr_pipe.close()
