@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import threading
+import warnings
 
 from smbprotocol.connection import NtStatus
 from smbprotocol.exceptions import SMBResponseException
@@ -22,6 +23,10 @@ else:
     from queue import Queue
 
 log = logging.getLogger(__name__)
+
+
+class TheadCloseTimeoutWarning(Warning):
+    pass
 
 
 def open_pipe(tree, name, access_mask, fsctl_wait=False):
@@ -115,6 +120,15 @@ class _NamedPipe(threading.Thread):
         self.pipe = open_pipe(tree, name, self.ACCESS_MASK,
                               fsctl_wait=True)
 
+    def _close_thread(self):
+        # waits until the Thread if closed for 5 seconds otherwise it throws
+        # a warning
+        log.debug("Waiting for pipe thread of pipe %s to close" % self.name)
+        self.join(timeout=5)
+        if self.is_alive():
+            warnings.warn("Timeout while waiting for pipe thread of pipe %s to"
+                          " close: %s" % self.name, TheadCloseTimeoutWarning)
+
 
 class InputPipe(_NamedPipe):
 
@@ -157,8 +171,7 @@ class InputPipe(_NamedPipe):
         log.info("Closing Input Named Pipe: %s" % self.name)
         log.debug("Send shutdown bytes to Input Named Pipe: %s" % self.name)
         self.pipe_buffer.put(self.close_bytes)
-        log.debug("Waiting for the pipe thread of %s to close" % self.name)
-        self.join()
+        self._close_thread()
 
 
 class OutputPipe(_NamedPipe):
@@ -217,5 +230,4 @@ class OutputPipe(_NamedPipe):
 
     def close(self):
         log.info("Closing Output Named Pipe: %s" % self.name)
-        log.debug("Waiting for pipe thread of %s to close" % self.name)
-        self.join()
+        self._close_thread()
