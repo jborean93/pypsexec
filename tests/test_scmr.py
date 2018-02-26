@@ -176,23 +176,23 @@ class TestServiceFunctional(object):
                 session.connect()
                 tree.connect()
 
-                paexec_file.open(ImpersonationLevel.Impersonation,
-                                 FilePipePrinterAccessMask.FILE_WRITE_DATA,
-                                 FileAttributes.FILE_ATTRIBUTE_NORMAL,
-                                 ShareAccess.FILE_SHARE_READ,
-                                 CreateDisposition.FILE_OVERWRITE_IF,
-                                 CreateOptions.FILE_NON_DIRECTORY_FILE)
+                paexec_file.create(ImpersonationLevel.Impersonation,
+                                   FilePipePrinterAccessMask.FILE_WRITE_DATA,
+                                   FileAttributes.FILE_ATTRIBUTE_NORMAL,
+                                   ShareAccess.FILE_SHARE_READ,
+                                   CreateDisposition.FILE_OVERWRITE_IF,
+                                   CreateOptions.FILE_NON_DIRECTORY_FILE)
                 paexec_file.write(binascii.unhexlify(PAEXEC_DATA), 0)
                 paexec_file.close(get_attributes=False)
 
                 yield session
             finally:
-                paexec_file.open(ImpersonationLevel.Impersonation,
-                                 FilePipePrinterAccessMask.DELETE,
-                                 FileAttributes.FILE_ATTRIBUTE_NORMAL,
-                                 0,
-                                 CreateDisposition.FILE_OVERWRITE_IF,
-                                 CreateOptions.FILE_DELETE_ON_CLOSE)
+                paexec_file.create(ImpersonationLevel.Impersonation,
+                                   FilePipePrinterAccessMask.DELETE,
+                                   FileAttributes.FILE_ATTRIBUTE_NORMAL,
+                                   0,
+                                   CreateDisposition.FILE_OVERWRITE_IF,
+                                   CreateOptions.FILE_DELETE_ON_CLOSE)
                 paexec_file.close(get_attributes=False)
                 connection.disconnect(True)
 

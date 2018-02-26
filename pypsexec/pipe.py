@@ -5,6 +5,8 @@ import sys
 import threading
 import warnings
 
+from abc import ABCMeta, abstractmethod
+from six import with_metaclass
 from smbprotocol.connection import NtStatus
 from smbprotocol.exceptions import SMBResponseException
 from smbprotocol.ioctl import CtlCode, IOCTLFlags, SMB2IOCTLRequest
@@ -67,13 +69,13 @@ def open_pipe(tree, name, access_mask, fsctl_wait=False):
                  % name)
         tree.session.connection.receive(request)
 
-    pipe.open(ImpersonationLevel.Impersonation,
-              access_mask,
-              FileAttributes.FILE_ATTRIBUTE_NORMAL,
-              0,
-              CreateDisposition.FILE_OPEN,
-              CreateOptions.FILE_NON_DIRECTORY_FILE |
-              CreateOptions.FILE_SYNCHRONOUS_IO_NONALERT)
+    pipe.create(ImpersonationLevel.Impersonation,
+                access_mask,
+                FileAttributes.FILE_ATTRIBUTE_NORMAL,
+                0,
+                CreateDisposition.FILE_OPEN,
+                CreateOptions.FILE_NON_DIRECTORY_FILE |
+                CreateOptions.FILE_SYNCHRONOUS_IO_NONALERT)
 
     return pipe
 
@@ -112,22 +114,20 @@ class _NamedPipe(threading.Thread):
 
     def __init__(self, tree, name):
         super(_NamedPipe, self).__init__()
-        self.pipe_buffer = Queue()
+        log.info("Initialising Named Pipe with the name: %s" % name)
         self.name = name
         self.connection = tree.session.connection
         self.sid = tree.session.session_id
         self.tid = tree.tree_connect_id
-        self.pipe = open_pipe(tree, name, self.ACCESS_MASK,
+        self.pipe = open_pipe(tree, name,
+                              self.ACCESS_MASK,
                               fsctl_wait=True)
 
     def _close_thread(self):
-        # waits until the Thread if closed for 5 seconds otherwise it throws
-        # a warning
-        log.debug("Waiting for pipe thread of pipe %s to close" % self.name)
         self.join(timeout=5)
         if self.is_alive():
-            warnings.warn("Timeout while waiting for pipe thread of pipe %s to"
-                          " close: %s" % self.name, TheadCloseTimeoutWarning)
+            warnings.warn("Timeout while waiting for pipe thread to close: %s"
+                          % self.name, TheadCloseTimeoutWarning)
 
 
 class InputPipe(_NamedPipe):
@@ -141,11 +141,12 @@ class InputPipe(_NamedPipe):
                   FilePipePrinterAccessMask.SYNCHRONIZE
 
     def __init__(self, tree, name):
+        super(InputPipe, self).__init__(tree, name)
+        self.pipe_buffer = Queue()
         self.close_bytes = os.urandom(16)
-        log.info("Initialising Input Named Pipe with the name: %s" % name)
         log.debug("Shutdown bytes for input pipe: %s"
                   % binascii.hexlify(self.close_bytes))
-        super(InputPipe, self).__init__(tree, name)
+        self.pipe_buffer = Queue()
 
     def run(self):
         try:
@@ -174,7 +175,7 @@ class InputPipe(_NamedPipe):
         self._close_thread()
 
 
-class OutputPipe(_NamedPipe):
+class OutputPipe(with_metaclass(ABCMeta, _NamedPipe)):
 
     ACCESS_MASK = FilePipePrinterAccessMask.FILE_READ_DATA | \
                   FilePipePrinterAccessMask.FILE_READ_ATTRIBUTES | \
@@ -183,14 +184,14 @@ class OutputPipe(_NamedPipe):
                   FilePipePrinterAccessMask.SYNCHRONIZE
 
     def __init__(self, tree, name):
-        log.info("Initialising Output Named Pipe with the name: %s" % name)
+        """Generic Output/Read Pipe that stores the output read in a Queue"""
         super(OutputPipe, self).__init__(tree, name)
+        self.sent_first = False
 
     def run(self):
         # read from the pipe and close it at the end
         try:
             log.debug("Starting thread of Output Named Pipe: %s" % self.name)
-            sent_first = False
             while True:
                 # get the read request and sent it so we can let the parent
                 # thread know it can continue before we are blocked by the read
@@ -200,26 +201,27 @@ class OutputPipe(_NamedPipe):
                 request = self.connection.send(read_msg,
                                                sid=self.sid,
                                                tid=self.tid)
-                if not sent_first:
-                    log.debug("Sending data to parent thread saying the first "
-                              "read has been sent for Output Named Pipe: %s"
-                              % self.name)
-                    self.pipe_buffer.put(None)
-                    sent_first = True
-
+                self.sent_first = True
                 try:
                     log.debug("Reading SMB Read response for Output Named "
                               "Pipe: %s" % self.name)
                     pipe_out = read_resp_func(request)
                     log.debug("Received SMB Read response for Output Named "
                               "Pipe: %s" % self.name)
-                    self.pipe_buffer.put(pipe_out)
+                    self.handle_output(pipe_out)
                 except SMBResponseException as exc:
                     # if the error was the pipe was broken exit the loop
                     # otherwise the error is serious so throw it
-                    if exc.status == NtStatus.STATUS_PIPE_BROKEN:
-                        log.debug("STATUS_PIPE_BROKEN received for Output "
-                                  "Named Pipe: %s, ending thread" % self.name)
+                    close_errors = [
+                        NtStatus.STATUS_PIPE_BROKEN,
+                        NtStatus.STATUS_PIPE_CLOSING,
+                        NtStatus.STATUS_PIPE_EMPTY,
+                        NtStatus.STATUS_PIPE_DISCONNECTED
+                    ]
+                    if exc.status in close_errors:
+                        log.debug("%s received for Output Named Pipe: %s, "
+                                  "ending thread"
+                                  % (str(exc.header['status']), self.name))
                         break
                     else:
                         raise exc
@@ -228,6 +230,40 @@ class OutputPipe(_NamedPipe):
             self.pipe.close(get_attributes=False)
         log.debug("Output Named Pipe %s thread finished" % self.name)
 
+    @abstractmethod
+    def handle_output(self, output):
+        """
+        The method called in the running thread whenever any data was read
+        from the Named Pipe.
+
+        :param output: a byte string of the output that was received from the
+            Named Pipe
+        """
+        pass  # pragma: no cover
+
+    @abstractmethod
+    def get_output(self):
+        """
+        Returns the stdout/stderr return value used in client.run_executable.
+
+        :return: The return object to return as part of the stdout/stderr
+            variable for client.run_executable
+        """
+        pass  # pragma: no cover
+
     def close(self):
         log.info("Closing Output Named Pipe: %s" % self.name)
         self._close_thread()
+
+
+class OutputPipeBytes(OutputPipe):
+
+    def __init__(self, tree, name):
+        self.pipe_buffer = b""
+        super(OutputPipeBytes, self).__init__(tree, name)
+
+    def handle_output(self, output):
+        self.pipe_buffer += output
+
+    def get_output(self):
+        return self.pipe_buffer

@@ -299,7 +299,9 @@ how the remote process will work. These args are;
 * `priority`: (pypsexec.ProcessPriority) The priority level of the process, default `NORMAL_PRIORITY_CLASS`
 * `remote_log_path`: (string) A path on the remote host to log the PAExec service details
 * `timeout_seconds`: (int) The maximum time the process can run for, default is `0` (no timeout)
-* `stdin`: (bytes) A byte string to send over the stdin pipe, does not work with `interactive=True` and `async=True`
+* `stdout`: (pipe.OutputPipe) A class that implements pipe.OutputPipe that controls how the stdout output is processed and returned, will default to returning the byte string of the stdout. Is ignored when `interactive=True` and `asynchronous=True`
+* `stderr`: (pipe.OutputPipe) A class that implements pipe.OutputPipe that controls how the stderr output is processed and returned, will default to returning the byte string of the stderr. Is ignored when `interactive=True` and `asynchronous=True`
+* `stdin`: (bytes/generator) A byte string or generator that yields a byte string to send over the stdin pipe, does not work with `interactive=True` and `asynchronous=True`
 
 
 ## Logging

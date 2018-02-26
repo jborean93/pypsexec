@@ -16,7 +16,7 @@ from pypsexec.exceptions import PypsexecException
 from pypsexec.paexec import PAExecMsg, PAExecMsgId, PAExecReturnBuffer, \
     PAExecSettingsBuffer, PAExecSettingsMsg, PAExecStartBuffer, \
     ProcessPriority, get_unique_id, paexec_out_stream
-from pypsexec.pipe import InputPipe, OutputPipe, open_pipe
+from pypsexec.pipe import InputPipe, OutputPipeBytes, open_pipe
 from pypsexec.scmr import EnumServiceState, Service, ServiceType
 
 if sys.version[0] == '2':
@@ -80,12 +80,12 @@ class Client(object):
         smb_tree.connect()
         paexec_file = Open(smb_tree, self._exe_file)
         log.debug("Creating open to PAExec file")
-        paexec_file.open(ImpersonationLevel.Impersonation,
-                         FilePipePrinterAccessMask.FILE_WRITE_DATA,
-                         FileAttributes.FILE_ATTRIBUTE_NORMAL,
-                         ShareAccess.FILE_SHARE_READ,
-                         CreateDisposition.FILE_OVERWRITE_IF,
-                         CreateOptions.FILE_NON_DIRECTORY_FILE)
+        paexec_file.create(ImpersonationLevel.Impersonation,
+                           FilePipePrinterAccessMask.FILE_WRITE_DATA,
+                           FileAttributes.FILE_ATTRIBUTE_NORMAL,
+                           ShareAccess.FILE_SHARE_READ,
+                           CreateDisposition.FILE_OVERWRITE_IF,
+                           CreateOptions.FILE_NON_DIRECTORY_FILE)
         log.info("Creating PAExec executable at %s\\%s"
                  % (smb_tree.share_name, self._exe_file))
         for (data, o) in paexec_out_stream(self.connection.max_write_size):
@@ -146,19 +146,33 @@ class Client(object):
         smb_tree.connect()
 
         share = Open(smb_tree, "")
-        share.open(ImpersonationLevel.Impersonation,
-                   DirectoryAccessMask.FILE_READ_ATTRIBUTES |
-                   DirectoryAccessMask.SYNCHRONIZE |
-                   DirectoryAccessMask.FILE_LIST_DIRECTORY,
-                   FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
-                   ShareAccess.FILE_SHARE_READ | ShareAccess.FILE_SHARE_WRITE |
-                   ShareAccess.FILE_SHARE_DELETE,
-                   CreateDisposition.FILE_OPEN,
-                   CreateOptions.FILE_DIRECTORY_FILE)
+        query_msgs = [
+            share.create(ImpersonationLevel.Impersonation,
+                         DirectoryAccessMask.FILE_READ_ATTRIBUTES |
+                         DirectoryAccessMask.SYNCHRONIZE |
+                         DirectoryAccessMask.FILE_LIST_DIRECTORY,
+                         FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
+                         ShareAccess.FILE_SHARE_READ |
+                         ShareAccess.FILE_SHARE_WRITE |
+                         ShareAccess.FILE_SHARE_DELETE,
+                         CreateDisposition.FILE_OPEN,
+                         CreateOptions.FILE_DIRECTORY_FILE,
+                         send=False),
+            share.query_directory("PAExec-*.exe",
+                                  FileInformationClass.FILE_NAMES_INFORMATION,
+                                  send=False),
+            share.close(False, send=False)
+        ]
+        query_reqs = self.connection.send_compound([x[0] for x in query_msgs],
+                                                   self.session.session_id,
+                                                   smb_tree.tree_connect_id,
+                                                   related=True)
+        # receive response for open and close
+        query_msgs[0][1](query_reqs[0])
+        query_msgs[2][1](query_reqs[2])
         try:
-            files = share.query_directory("PAExec-*.exe",
-                                          FileInformationClass.
-                                          FILE_NAMES_INFORMATION)
+            # receive the response for query_directory
+            files = query_msgs[1][1](query_reqs[1])
         except SMBResponseException as exc:
             if exc.status != NtStatus.STATUS_NO_SUCH_FILE:
                 raise exc
@@ -175,7 +189,9 @@ class Client(object):
                        password=None, use_system_account=False,
                        working_dir=None, show_ui_on_win_logon=False,
                        priority=ProcessPriority.NORMAL_PRIORITY_CLASS,
-                       remote_log_path=None, timeout_seconds=0, stdin=None):
+                       remote_log_path=None, timeout_seconds=0,
+                       stdout=OutputPipeBytes, stderr=OutputPipeBytes,
+                       stdin=None):
         """
         Runs a command over the PAExec/PSExec interface based on the options
         provided. At a minimum the executable argument is required and the
@@ -225,12 +241,19 @@ class Client(object):
             log files for the PAExec service process (for debugging purposes)
         :param timeout_seconds: (Int) A timeout that will force the PAExec
             process to stop once reached, default is 0 (no timeout)
-        :param stdin: (Bytes) A byte string to send over the stdin pipe once
-            the process has been spawned. This must be a bytes string and not
-            a normal Python string
+        :param stdout: (pipe.OutputPipe) An class that implements of
+            pipe.OutputPipe that handles the Named Pipe stdout output. The
+            default is pipe.OutputPipeBytes which returns a byte string of the
+            stdout
+        :param stderr: (pipe.OutputPipe) An class that implements of
+            pipe.OutputPipe that handles the Named Pipe stderr output. The
+            default is pipe.OutputPipeBytes which returns a byte string of the
+            stderr
+        :param stdin: Either a byte string of generator that yields multiple
+            byte strings to send over the stdin pipe.
         :return: Tuple(stdout, stderr, rc)
-            stdout: (Bytes) The stdout as a byte string from the process
-            stderr: (Bytes) The stderr as a byte string from the process
+            stdout: (Bytes) The stdout.get_bytes() return result
+            stderr: (Bytes) The stderr.get_bytes() return result
             rc: (Int) The return code of the process (The pid of the async
                 process when async=True)
         """
@@ -306,9 +329,9 @@ class Client(object):
             # create a pipe for stdout, stderr, and stdin and run in a separate
             # thread
             log.info("Connecting to remote pipes to retrieve output")
-            stdout_pipe = OutputPipe(smb_tree, self._stdout_pipe_name)
+            stdout_pipe = stdout(smb_tree, self._stdout_pipe_name)
             stdout_pipe.start()
-            stderr_pipe = OutputPipe(smb_tree, self._stderr_pipe_name)
+            stderr_pipe = stderr(smb_tree, self._stderr_pipe_name)
             stderr_pipe.start()
             stdin_pipe = InputPipe(smb_tree, self._stdin_pipe_name)
             stdin_pipe.start()
@@ -316,15 +339,22 @@ class Client(object):
             # wait until the stdout and stderr pipes have sent their first
             # response
             log.debug("Waiting for stdout pipe to send first request")
-            stdout_pipe.pipe_buffer.get()
+            while not stdout_pipe.sent_first:
+                pass
             log.debug("Waiting for stderr pipe to send first request")
-            stderr_pipe.pipe_buffer.get()
+            while not stderr_pipe.sent_first:
+                pass
 
             # send any input if there was any
-            if stdin:
+            if stdin and isinstance(stdin, bytes):
                 log.info("Sending stdin bytes over stdin pipe: %s"
                          % self._stdin_pipe_name)
                 stdin_pipe.pipe_buffer.put(stdin)
+            elif stdin:
+                log.info("Sending stdin generator bytes over stdin pipe: %s"
+                         % self._stdin_pipe_name)
+                for stdin_data in stdin():
+                    stdin_pipe.pipe_buffer.put(stdin_data)
 
         # read the final response from the process
         log.info("Reading result of PAExec process")
@@ -337,11 +367,11 @@ class Client(object):
             stderr_pipe.close()
             stdin_pipe.close()
             log.info("Gettings stdout and stderr from pipe buffer queue")
-            stdout = self._empty_queue(stdout_pipe.pipe_buffer)
-            stderr = self._empty_queue(stderr_pipe.pipe_buffer)
+            stdout_out = stdout_pipe.get_output()
+            stderr_bytes = stderr_pipe.get_output()
         else:
-            stdout = None
-            stderr = None
+            stdout_out = None
+            stderr_bytes = None
 
         log.info("Closing main PAExec pipe")
         main_pipe.close()
@@ -360,10 +390,8 @@ class Client(object):
 
         return_code = rc['return_code'].get_value()
         log.info("Process finished with exit code: %d" % return_code)
-        log.debug("STDOUT: %s" % stdout)
-        log.debug("STDERR: %s" % stderr)
         log.debug("RC: %d" % return_code)
-        return stdout, stderr, return_code
+        return stdout_out, stderr_bytes, return_code
 
     def _encode_string(self, string):
         return string.encode('utf-16-le') if string else None
@@ -380,11 +408,21 @@ class Client(object):
 
     def _delete_file(self, tree, name):
         file_open = Open(tree, name)
-        file_open.open(ImpersonationLevel.Impersonation,
-                       FilePipePrinterAccessMask.DELETE,
-                       FileAttributes.FILE_ATTRIBUTE_NORMAL,
-                       0,
-                       CreateDisposition.FILE_OPEN_IF,
-                       CreateOptions.FILE_NON_DIRECTORY_FILE |
-                       CreateOptions.FILE_DELETE_ON_CLOSE)
-        file_open.close(get_attributes=False)
+        msgs = [
+            file_open.create(ImpersonationLevel.Impersonation,
+                             FilePipePrinterAccessMask.DELETE,
+                             FileAttributes.FILE_ATTRIBUTE_NORMAL,
+                             0,
+                             CreateDisposition.FILE_OPEN_IF,
+                             CreateOptions.FILE_NON_DIRECTORY_FILE |
+                             CreateOptions.FILE_DELETE_ON_CLOSE,
+                             send=False),
+            file_open.close(get_attributes=False, send=False)
+        ]
+        reqs = self.connection.send_compound([x[0] for x in msgs],
+                                             sid=self.session.session_id,
+                                             tid=tree.tree_connect_id,
+                                             related=True)
+        # remove the responses from the SMB outstanding requests
+        msgs[0][1](reqs[0])
+        msgs[1][1](reqs[1])

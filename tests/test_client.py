@@ -7,6 +7,7 @@ import pytest
 from pypsexec.client import Client
 from pypsexec.exceptions import PAExecException, PypsexecException
 from pypsexec.paexec import ProcessPriority
+from pypsexec.pipe import OutputPipe
 from pypsexec.scmr import EnumServiceState, Service, ServiceType
 
 from smbprotocol.connection import NtStatus
@@ -133,6 +134,29 @@ class TestClientFunctional(object):
                                        arguments=arguments)
         assert actual[0] == b"first \r\nthird\r\n"
         assert actual[1] == b"second  \r\n"
+        assert actual[2] == 0
+        time.sleep(1)
+
+    def test_proc_custom_stdout_stderr(self, client):
+        class OutputPipeList(OutputPipe):
+
+            def __init__(self, tree, name):
+                self.pipe_buffer = []
+                super(OutputPipeList, self).__init__(tree, name)
+
+            def handle_output(self, output):
+                self.pipe_buffer.append(output)
+
+            def get_output(self):
+                return self.pipe_buffer
+
+        arguments = "/c echo first && echo second 1>&2 && echo third"
+        actual = client.run_executable("cmd.exe",
+                                       arguments=arguments,
+                                       stdout=OutputPipeList,
+                                       stderr=OutputPipeList)
+        assert actual[0] == [b"first \r\n", b"third\r\n"]
+        assert actual[1] == [b"second  \r\n"]
         assert actual[2] == 0
         time.sleep(1)
 
@@ -272,10 +296,24 @@ class TestClientFunctional(object):
         assert actual[2] == 0
         time.sleep(1)
 
+    def test_proc_with_stdin_generator(self, client):
+        def stdin_generator():
+            yield b"Write-Host input1\r\n"
+            yield b"Write-Host input2\r\n"
+            yield b"exit 0\r\n"
+
+        actual = client.run_executable("powershell.exe",
+                                       arguments="-",
+                                       stdin=stdin_generator)
+        assert actual[0] == b"input1\ninput2\n"
+        assert actual[1] == b""
+        assert actual[2] == 0
+        time.sleep(1)
+
     def test_proc_with_async(self, client):
         start_time = time.time()
         actual = client.run_executable("powershell.exe",
-                                       arguments="Start-Sleep -Seconds 20",
+                                       arguments="Start-Sleep -Seconds 10",
                                        asynchronous=True)
         actual_time = time.time() - start_time
         assert int(actual_time) < 5
@@ -353,15 +391,16 @@ class TestClientFunctional(object):
         smb_tree.connect()
 
         share = Open(smb_tree, "")
-        share.open(ImpersonationLevel.Impersonation,
-                   DirectoryAccessMask.FILE_READ_ATTRIBUTES |
-                   DirectoryAccessMask.SYNCHRONIZE |
-                   DirectoryAccessMask.FILE_LIST_DIRECTORY,
-                   FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
-                   ShareAccess.FILE_SHARE_READ | ShareAccess.FILE_SHARE_WRITE |
-                   ShareAccess.FILE_SHARE_DELETE,
-                   CreateDisposition.FILE_OPEN,
-                   CreateOptions.FILE_DIRECTORY_FILE)
+        share.create(ImpersonationLevel.Impersonation,
+                     DirectoryAccessMask.FILE_READ_ATTRIBUTES |
+                     DirectoryAccessMask.SYNCHRONIZE |
+                     DirectoryAccessMask.FILE_LIST_DIRECTORY,
+                     FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
+                     ShareAccess.FILE_SHARE_READ |
+                     ShareAccess.FILE_SHARE_WRITE |
+                     ShareAccess.FILE_SHARE_DELETE,
+                     CreateDisposition.FILE_OPEN,
+                     CreateOptions.FILE_DIRECTORY_FILE)
         try:
             paexec_files = share.query_directory("PAExec-*.exe",
                                                  FileInformationClass.

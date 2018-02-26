@@ -7,8 +7,7 @@ from smbprotocol.exceptions import SMBResponseException
 from smbprotocol.ioctl import CtlCode, IOCTLFlags, SMB2IOCTLRequest, \
     SMB2IOCTLResponse
 from smbprotocol.open import CreateDisposition, CreateOptions, \
-    FilePipePrinterAccessMask, ImpersonationLevel, ShareAccess
-from smbprotocol.open import Open
+    FilePipePrinterAccessMask, ImpersonationLevel, Open, ShareAccess
 from smbprotocol.structure import IntField, EnumField, FlagField, Structure
 from smbprotocol.tree import TreeConnect
 
@@ -363,15 +362,15 @@ class SCMRApi(object):
         self.tree.connect()
 
         log.debug("Opening handle to svcctl pipe")
-        self.handle.open(ImpersonationLevel.Impersonation,
-                         FilePipePrinterAccessMask.GENERIC_READ |
-                         FilePipePrinterAccessMask.GENERIC_WRITE,
-                         0,
-                         ShareAccess.FILE_SHARE_READ |
-                         ShareAccess.FILE_SHARE_WRITE |
-                         ShareAccess.FILE_SHARE_DELETE,
-                         CreateDisposition.FILE_OPEN,
-                         CreateOptions.FILE_NON_DIRECTORY_FILE)
+        self.handle.create(ImpersonationLevel.Impersonation,
+                           FilePipePrinterAccessMask.GENERIC_READ |
+                           FilePipePrinterAccessMask.GENERIC_WRITE,
+                           0,
+                           ShareAccess.FILE_SHARE_READ |
+                           ShareAccess.FILE_SHARE_WRITE |
+                           ShareAccess.FILE_SHARE_DELETE,
+                           CreateDisposition.FILE_OPEN,
+                           CreateOptions.FILE_NON_DIRECTORY_FILE)
 
         # we need to bind svcctl to SCManagerW over DCE/RPC
         bind = BindPDU()
