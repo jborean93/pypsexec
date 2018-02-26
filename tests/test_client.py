@@ -73,6 +73,24 @@ class TestClient(object):
         assert str(exc.value) == "Both run_elevated and run_limited are " \
                                  "set, only 1 of these can be true"
 
+    def test_proc_stdin_and_async(self):
+        client = Client("username", "password", "server")
+        with pytest.raises(PypsexecException) as exc:
+            client.run_executable("whoami",
+                                  asynchronous=True,
+                                  stdin=b"")
+        assert str(exc.value) == "Cannot send stdin data on an interactive " \
+                                 "or asynchronous process"
+
+    def test_proc_stdin_and_interactive(self):
+        client = Client("username", "password", "server")
+        with pytest.raises(PypsexecException) as exc:
+            client.run_executable("whoami",
+                                  interactive=True,
+                                  stdin=b"")
+        assert str(exc.value) == "Cannot send stdin data on an interactive " \
+                                 "or asynchronous process"
+
 
 # these are the functional, they only run in the presence of env vars
 class TestClientFunctional(object):

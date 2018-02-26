@@ -2,6 +2,7 @@ import logging
 import os
 import socket
 import sys
+import time
 import uuid
 
 from smbprotocol.connection import Connection, NtStatus
@@ -260,6 +261,9 @@ class Client(object):
         if run_elevated and run_limited:
             raise PypsexecException("Both run_elevated and run_limited are "
                                     "set, only 1 of these can be true")
+        if stdin is not None and (asynchronous or interactive):
+            raise PypsexecException("Cannot send stdin data on an interactive "
+                                    "or asynchronous process")
 
         log.debug("Making sure PAExec service is running")
         self._service.start()
@@ -293,12 +297,29 @@ class Client(object):
         input_data['buffer'] = settings
 
         # write the settings to the main PAExec pipe
-        main_pipe = open_pipe(smb_tree, self._exe_file,
-                              FilePipePrinterAccessMask.GENERIC_READ |
-                              FilePipePrinterAccessMask.GENERIC_WRITE |
-                              FilePipePrinterAccessMask.FILE_APPEND_DATA |
-                              FilePipePrinterAccessMask.READ_CONTROL |
-                              FilePipePrinterAccessMask.SYNCHRONIZE)
+        pipe_access_mask = FilePipePrinterAccessMask.GENERIC_READ | \
+            FilePipePrinterAccessMask.GENERIC_WRITE | \
+            FilePipePrinterAccessMask.FILE_APPEND_DATA | \
+            FilePipePrinterAccessMask.READ_CONTROL | \
+            FilePipePrinterAccessMask.SYNCHRONIZE
+        for i in range(0, 3):
+            try:
+                main_pipe = open_pipe(smb_tree, self._exe_file,
+                                      pipe_access_mask)
+            except SMBResponseException as exc:
+                if exc.status != NtStatus.STATUS_OBJECT_NAME_NOT_FOUND:
+                    raise exc
+                elif i == 2:
+                    raise PypsexecException("Failed to open main PAExec pipe "
+                                            "%s, no more attempts remaining"
+                                            % self._exe_file)
+                log.warning("Main pipe %s does not exist yet on attempt %d. "
+                            "Trying again in 5 seconds"
+                            % (self._exe_file, i + 1))
+                time.sleep(5)
+            else:
+                break
+
         log.info("Writing PAExecSettingsMsg to the main PAExec pipe")
         log.info(str(input_data))
         main_pipe.write(input_data.pack(), 0)
@@ -345,15 +366,22 @@ class Client(object):
                 pass
 
             # send any input if there was any
-            if stdin and isinstance(stdin, bytes):
-                log.info("Sending stdin bytes over stdin pipe: %s"
-                         % self._stdin_pipe_name)
-                stdin_pipe.write(stdin)
-            elif stdin:
-                log.info("Sending stdin generator bytes over stdin pipe: %s"
-                         % self._stdin_pipe_name)
-                for stdin_data in stdin():
-                    stdin_pipe.write(stdin_data)
+            try:
+                if stdin and isinstance(stdin, bytes):
+                    log.info("Sending stdin bytes over stdin pipe: %s"
+                             % self._stdin_pipe_name)
+                    stdin_pipe.write(stdin)
+                elif stdin:
+                    log.info("Sending stdin generator bytes over stdin pipe: "
+                             "%s" % self._stdin_pipe_name)
+                    for stdin_data in stdin():
+                        stdin_pipe.write(stdin_data)
+            except SMBResponseException as exc:
+                # if it fails with a STATUS_PIPE_BROKEN exception, continue as
+                # the actual error will be in the response (process failed)
+                if exc.status != NtStatus.STATUS_PIPE_BROKEN:
+                    raise exc
+                log.warning("Failed to send data through stdin: %s" % str(exc))
 
         # read the final response from the process
         log.info("Reading result of PAExec process")
