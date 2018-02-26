@@ -1,6 +1,4 @@
-import binascii
 import logging
-import os
 import sys
 import threading
 import warnings
@@ -18,11 +16,6 @@ try:
     from collections import OrderedDict
 except ImportError:  # pragma: no cover
     from ordereddict import OrderedDict
-
-if sys.version[0] == '2':
-    from Queue import Queue
-else:
-    from queue import Queue
 
 log = logging.getLogger(__name__)
 
@@ -108,84 +101,66 @@ class FSCTLPipeWait(Structure):
         super(FSCTLPipeWait, self).__init__()
 
 
-class _NamedPipe(threading.Thread):
-
-    ACCESS_MASK = 0
+class InputPipe(object):
 
     def __init__(self, tree, name):
-        super(_NamedPipe, self).__init__()
-        log.info("Initialising Named Pipe with the name: %s" % name)
+        """
+        Thin wrapper around an input Named Pipe. This isn't run in a thread
+        and any data sent to write is written to the Named Pipe.
+
+        :param tree: The SMB tree connected to IPC$
+        :param name: The name of the input Named Pipe
+        """
+        log.info("Initialising Input Named Pipe with the name: %s" % name)
         self.name = name
         self.connection = tree.session.connection
         self.sid = tree.session.session_id
         self.tid = tree.tree_connect_id
         self.pipe = open_pipe(tree, name,
-                              self.ACCESS_MASK,
+                              FilePipePrinterAccessMask.FILE_WRITE_DATA |
+                              FilePipePrinterAccessMask.FILE_APPEND_DATA |
+                              FilePipePrinterAccessMask.FILE_WRITE_EA |
+                              FilePipePrinterAccessMask.FILE_WRITE_ATTRIBUTES |
+                              FilePipePrinterAccessMask.FILE_READ_ATTRIBUTES |
+                              FilePipePrinterAccessMask.READ_CONTROL |
+                              FilePipePrinterAccessMask.SYNCHRONIZE,
                               fsctl_wait=True)
 
-    def _close_thread(self):
-        self.join(timeout=5)
-        if self.is_alive():
-            warnings.warn("Timeout while waiting for pipe thread to close: %s"
-                          % self.name, TheadCloseTimeoutWarning)
-
-
-class InputPipe(_NamedPipe):
-
-    ACCESS_MASK = FilePipePrinterAccessMask.FILE_WRITE_DATA | \
-                  FilePipePrinterAccessMask.FILE_APPEND_DATA | \
-                  FilePipePrinterAccessMask.FILE_WRITE_EA | \
-                  FilePipePrinterAccessMask.FILE_WRITE_ATTRIBUTES | \
-                  FilePipePrinterAccessMask.FILE_READ_ATTRIBUTES | \
-                  FilePipePrinterAccessMask.READ_CONTROL | \
-                  FilePipePrinterAccessMask.SYNCHRONIZE
-
-    def __init__(self, tree, name):
-        super(InputPipe, self).__init__(tree, name)
-        self.pipe_buffer = Queue()
-        self.close_bytes = os.urandom(16)
-        log.debug("Shutdown bytes for input pipe: %s"
-                  % binascii.hexlify(self.close_bytes))
-        self.pipe_buffer = Queue()
-
-    def run(self):
-        try:
-            log.debug("Starting thread of Input Named Pipe: %s" % self.name)
-            while True:
-                log.debug("Waiting for input for %s" % self.name)
-                input_data = self.pipe_buffer.get()
-                log.debug("Input for %s was found: %s"
-                          % (self.name, binascii.hexlify(input_data)))
-                if input_data == self.close_bytes:
-                    log.debug("Close bytes was received for input pipe: %s"
-                              % self.name)
-                    break
-
-                log.debug("Writing bytes to Input Named Pipe: %s" % self.name)
-                self.pipe.write(input_data, 0)
-        finally:
-            log.debug("Closing SMB Open to Input Named Pipe: %s" % self.name)
-            self.pipe.close(get_attributes=False)
-        log.debug("Input Named Pipe %s thread finished" % self.name)
+    def write(self, data):
+        log.info("Sending bytes to Input Named Pipe: %s" % self.name)
+        self.pipe.write(data, 0)
 
     def close(self):
         log.info("Closing Input Named Pipe: %s" % self.name)
-        log.debug("Send shutdown bytes to Input Named Pipe: %s" % self.name)
-        self.pipe_buffer.put(self.close_bytes)
-        self._close_thread()
+        self.pipe.close(get_attributes=False)
 
 
-class OutputPipe(with_metaclass(ABCMeta, _NamedPipe)):
-
-    ACCESS_MASK = FilePipePrinterAccessMask.FILE_READ_DATA | \
-                  FilePipePrinterAccessMask.FILE_READ_ATTRIBUTES | \
-                  FilePipePrinterAccessMask.FILE_READ_EA | \
-                  FilePipePrinterAccessMask.READ_CONTROL | \
-                  FilePipePrinterAccessMask.SYNCHRONIZE
+class OutputPipe(with_metaclass(ABCMeta, threading.Thread)):
 
     def __init__(self, tree, name):
-        """Generic Output/Read Pipe that stores the output read in a Queue"""
-        super(OutputPipe, self).__init__(tree, name)
+        """
+        Base class for an Output/Read pipe that reads the output from a Named
+        Pipe in a separate thread and sends that data to the handle_output
+        method defined by the implementation class. This should not be used
+        directly, i.e. use OutputPipeBytes instead which returns the Named
+        Pipe output as a byte string.
+
+        :param tree: The SMB tree connected to IPC$
+        :param name: The name of the output Named Pipe
+        """
+        super(OutputPipe, self).__init__()
+        log.info("Initialising Output Named Pipe with the name: %s" % name)
+        self.name = name
+        self.connection = tree.session.connection
+        self.sid = tree.session.session_id
+        self.tid = tree.tree_connect_id
+        self.pipe = open_pipe(tree, name,
+                              FilePipePrinterAccessMask.FILE_READ_DATA |
+                              FilePipePrinterAccessMask.FILE_READ_ATTRIBUTES |
+                              FilePipePrinterAccessMask.FILE_READ_EA |
+                              FilePipePrinterAccessMask.READ_CONTROL |
+                              FilePipePrinterAccessMask.SYNCHRONIZE,
+                              fsctl_wait=True)
         self.sent_first = False
 
     def run(self):
@@ -253,12 +228,16 @@ class OutputPipe(with_metaclass(ABCMeta, _NamedPipe)):
 
     def close(self):
         log.info("Closing Output Named Pipe: %s" % self.name)
-        self._close_thread()
+        self.join(timeout=5)
+        if self.is_alive():
+            warnings.warn("Timeout while waiting for pipe thread to close: %s"
+                          % self.name, TheadCloseTimeoutWarning)
 
 
 class OutputPipeBytes(OutputPipe):
 
     def __init__(self, tree, name):
+        """ An impl of OuputPipe that stores the output buffer as bytes"""
         self.pipe_buffer = b""
         super(OutputPipeBytes, self).__init__(tree, name)
 

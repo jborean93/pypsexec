@@ -334,7 +334,6 @@ class Client(object):
             stderr_pipe = stderr(smb_tree, self._stderr_pipe_name)
             stderr_pipe.start()
             stdin_pipe = InputPipe(smb_tree, self._stdin_pipe_name)
-            stdin_pipe.start()
 
             # wait until the stdout and stderr pipes have sent their first
             # response
@@ -349,12 +348,12 @@ class Client(object):
             if stdin and isinstance(stdin, bytes):
                 log.info("Sending stdin bytes over stdin pipe: %s"
                          % self._stdin_pipe_name)
-                stdin_pipe.pipe_buffer.put(stdin)
+                stdin_pipe.write(stdin)
             elif stdin:
                 log.info("Sending stdin generator bytes over stdin pipe: %s"
                          % self._stdin_pipe_name)
                 for stdin_data in stdin():
-                    stdin_pipe.pipe_buffer.put(stdin_data)
+                    stdin_pipe.write(stdin_data)
 
         # read the final response from the process
         log.info("Reading result of PAExec process")

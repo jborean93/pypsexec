@@ -138,10 +138,10 @@ commands;
 
 ```
 # PowerShell (Windows 8 and Server 2012 or Newer)
-New-NetFirewallRule -Name SMB -DisplayName "SMB Inbound" -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 445
+Set-NetFirewallRule -Name FPS-SMB-In-TCP -Enabled True
 
 # CMD (All OS's)
-netsh advfirewall firewall add rule name=SMB dir=in action=allow protocol=TCP localport=445
+netsh advfirewall firewall set rule name="File and Printer Sharing (SMB-In)" dir=in new enable=Yes
 ```
 
 This will open up inbound traffic to port `445` which is used by SMB.
