@@ -66,7 +66,7 @@ class Client(object):
         log.info("Closing handle of PAExec service and SCMR")
         self._service.close()
         log.info("Closing SMB Connection")
-        self.connection.disconnect(True)
+        self.connection.disconnect()
 
     def create_service(self):
         # check if the service exists and delete it
