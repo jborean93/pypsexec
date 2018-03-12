@@ -8,7 +8,9 @@
 This library can run commands on a remote Windows host through Python. This
 means that it can be run on any host with Python and does not require any
 binaries to be present or a specific OS. It uses SMB/RPC to executable commands
-in a similar fashion to the popular PsExec tool.
+in a similar fashion to the popular PsExec tool. More details on this tool
+can be read on
+[this blog post](https://www.bloggingforlogging.com/2018/03/12/introducing-psexec-for-python/).
 
 The executable wrapper that is sent to the service is based on the
 [PAExec](https://github.com/poweradminllc/PAExec) library. PAExec is an free,
@@ -129,6 +131,7 @@ that is being used. What pypsexec requires on the host is;
 * The `ADMIN$` share to be enabled with read/write access of the user configured
 * The above usually means the configured user is an administrator of the Windows host
 * At least SMB 2 on the host (Server 2008 and newer)
+* The connection user has a full logon token that is not filtered by UAC
 
 ### Firewall Setup
 
@@ -149,20 +152,27 @@ This will open up inbound traffic to port `445` which is used by SMB.
 
 ### User Account Control
 
-On the desktop variants of Windows (7, 8, 10), UAC is enabled by default and is
-set to filter a network logon of a local account of their Administrative
-rights. Unfortunately pypsexec requires these rights to both copy the
-executable to the `ADMIN$` share as well as create the PAExec service on the
-host. With the default setting it will receive an `ACCESS_IS_DENIED` response
-when attempting either of the 2 as it's token does not have Administrative
-rights.
+In some circumstances, UAC will filter any remote logon token and limit the
+rights that are available to it. This causes issues with pypsexec and it will
+fail with an `ACCESS_IS_DENIED` error message when trying to interact with the
+remote SCMR API. This restriction is enforced in various different scenarios
+and to get it working with pypsexec you can either;
 
-To get it working on these OS', either configure UAC to not filter local
-account tokens from a network logon or disable UAC entirely. Disabling UAC is
-definitely an extreme step and should be avoided if possible but disabling
-local token filtering means any network logons of an Administrator account
-now gets the full rights of that user. To disable local token filter run the
-following;
+* In a domain environment, use any domain account that is a member of the local `Administrators` group
+* Use any local account that is a member of the local `Administrators` group if [LocalAccountTokenFilterPolicy](https://support.microsoft.com/en-us/help/951016/description-of-user-account-control-and-remote-restrictions-in-windows) is set to `1`
+    * This means any remote logon token will not be filtered and will have the full rights of that user
+    * By default this is not defined and needs to be created
+    * This only affects remote tokens, any local tokens/processes will still be limited as per usual
+* Use the builtin local Administrator account (SID `S-1-5-21-*-500`) that is created when Windows was installed
+    * The builtin Administrator account for English installs is typically called `Administrator` but it can be renamed
+    * This account is typically disabled by default on the desktop variants of Windows, e.g. Windows 7, 8.1, 10
+    * When [AdminApprovalMode](https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2008-R2-and-2008/dd835564(v=ws.10)#BKMK_BuiltInAdmin) is `Enabled` this will not work. `AdminApprovalMode` is not `Enabled` by default
+* Use any local account that is a member of the local `Administrators` group if [EnableLUA](https://docs.microsoft.com/en-us/windows-hardware/customize/desktop/unattend/microsoft-windows-lua-settings-enablelua) is `Disabled`
+    * Unlike the `LocalAccountTokenFilterPolicy` option, this affects local tokens and processes spawned locally
+    * This effectively disables UAC for any Administrator accounts and should be avoided
+
+To set `LocalAccountTokenFilterPolicy` to allow a full token on a remote logon,
+run the following PowerShell commands;
 
 ```
 $reg_path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
@@ -177,7 +187,22 @@ if ($null -ne $reg_prop) {
 New-ItemProperty -Path $reg_path -Name $reg_prop_name -Value 1 -PropertyType DWord
 ```
 
-To disable UAC entirely, run the following;
+To get the name of the builtin Administrator (SID `S-1-5-21-*-500`), you can
+run the following PowerShell commands;
+
+```
+Add-Type -AssemblyName System.DirectoryServices.AccountManagement
+$principal_context = New-Object -TypeName System.DirectoryServices.AccountManagement.PrincipalContext([System.DirectoryServices.AccountManagement.ContextType]::Machine)
+$user_principal = New-Object -TypeName System.DirectoryServices.AccountManagement.UserPrincipal($principal_context)
+$searcher = New-Object -TypeName System.DirectoryServices.AccountManagement.PrincipalSearcher($user_principal)
+$users = $searcher.FindAll() | Where-Object { $_.Sid -like "*-500" }
+$users[0].Name
+```
+
+The last resort would be to disable UAC for any local Administrator account.
+Once again this should be avoided as there are other options available and this
+will reduce the security of your Windows host, but to do so you can run the
+following PowerShell commands;
 
 ```
 $reg_path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
@@ -192,7 +217,7 @@ if ($null -ne $reg_prop) {
 New-ItemProperty -Path $reg_path -Name $reg_prop_name -Value 0 -PropertyType DWord
 ```
 
-After running either of these scripts, the Windows host needs to be rebooted
+After changing the `EnableLUA` setting, the Windows host needs to be rebooted
 before the policies are enacted.
 
 
