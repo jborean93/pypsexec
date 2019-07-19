@@ -69,14 +69,14 @@ class Client(object):
         log.info("Closing SMB Connection")
         self.connection.disconnect(close=False)
 
-    def create_service(self):
+    def create_service(self, sharename):
         # check if the service exists and delete it
         log.debug("Ensuring service is deleted before starting")
         self._service.delete()
 
         # copy across the PAExec payload to C:\Windows\
         smb_tree = TreeConnect(self.session,
-                               r"\\%s\ADMIN$" % self.connection.server_name)
+                               r"\\%s\%s" % (self.connection.server_name, sharename))
         log.info("Connecting to SMB Tree %s" % smb_tree.share_name)
         smb_tree.connect()
         paexec_file = Open(smb_tree, self._exe_file)
@@ -113,7 +113,7 @@ class Client(object):
 
         # delete the PAExec executable
         smb_tree = TreeConnect(self.session,
-                               r"\\%s\ADMIN$" % self.connection.server_name)
+                               r"\\%s\%s" % (self.connection.server_name, sharename))
         log.info("Connecting to SMB Tree %s" % smb_tree.share_name)
         smb_tree.connect()
         log.info("Creating open to PAExec file with delete on close flags")
@@ -143,7 +143,7 @@ class Client(object):
                 svc.delete()
 
         smb_tree = TreeConnect(self.session,
-                               r"\\%s\ADMIN$" % self.connection.server_name)
+                               r"\\%s\%s" % (self.connection.server_name, sharename))
         smb_tree.connect()
 
         share = Open(smb_tree, "")
