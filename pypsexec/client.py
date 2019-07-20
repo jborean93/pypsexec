@@ -4,6 +4,7 @@ import socket
 import sys
 import time
 import uuid
+import random
 
 from smbprotocol.connection import Connection, NtStatus
 from smbprotocol.exceptions import SMBResponseException
@@ -30,33 +31,42 @@ log = logging.getLogger(__name__)
 
 class Client(object):
 
-    def __init__(self, server, username=None, password=None, port=445,
-                 encrypt=True):
+    def __init__(self, server, username=None, password=None, port=445, encrypt=True, obscure=True):
         self.server = server
         self.port = port
         self.pid = os.getpid()
         self.current_host = socket.gethostname()
         self.connection = Connection(uuid.uuid4(), server, port)
-        self.session = Session(self.connection, username, password,
-                               require_encryption=encrypt)
+        self.session = Session(self.connection, username, password, require_encryption=encrypt)
+        self.service_name = ""; #added
 
-        self.service_name = "PAExec-%d-%s" % (self.pid, self.current_host)
-        log.info("Creating PyPsexec Client with unique name: %s"
-                 % self.service_name)
+        if obscure:#added
+            self.service_name = Client.obscure_service_name();#added
+        else:#added
+            self.service_name = "PAExec-%d-%s" % (self.pid, self.current_host)
+
+        log.info("Creating PyPsexec Client with unique name: %s" % self.service_name)
         self._exe_file = "%s.exe" % self.service_name
-        self._stdout_pipe_name = "PaExecOut%s%d"\
-                                 % (self.current_host, self.pid)
-        self._stderr_pipe_name = "PaExecErr%s%d"\
-                                 % (self.current_host, self.pid)
+        self._stdout_pipe_name = "PaExecOut%s%d" % (self.current_host, self.pid)
+        self._stderr_pipe_name = "PaExecErr%s%d" % (self.current_host, self.pid)
         self._stdin_pipe_name = "PaExecIn%s%d" % (self.current_host, self.pid)
         self._unique_id = get_unique_id(self.pid, self.current_host)
-        log.info("Generated unique ID for PyPsexec Client: %d"
-                 % self._unique_id)
+        log.info("Generated unique ID for PyPsexec Client: %d" % self._unique_id)
         self._service = Service(self.service_name, self.session)
 
+    @staticmethod #added-----------------------------------------------------------------------
+    def obscure_service_name(self):
+        selection = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0987654321_- ";
+        stringbuilder = [];
+
+        for iter in range(0, random.randint(4, 16)):
+            stringbuilder.append(random.choice(selection));
+
+        return "".join(stringbuilder);
+
+
     def connect(self, timeout=60):
-        log.info("Setting up SMB Connection to %s:%d"
-                 % (self.server, self.port))
+        log.info("Setting up SMB Connection to %s:%d" % (self.server, self.port))
         self.connection.connect(timeout=timeout)
         log.info("Authenticating SMB Session")
         self.session.connect()
@@ -101,7 +111,7 @@ class Client(object):
         log.info("Creating PAExec service %s" % self.service_name)
         self._service.create(service_path)
 
-    def remove_service(self):
+    def remove_service(self, sharename):
         """
         Removes the PAExec service and executable that was created as part of
         the create_service function. This does not remove any older executables
@@ -112,8 +122,7 @@ class Client(object):
         self._service.delete()
 
         # delete the PAExec executable
-        smb_tree = TreeConnect(self.session,
-                               r"\\%s\%s" % (self.connection.server_name, sharename))
+        smb_tree = TreeConnect(self.session, r"\\%s\%s" % (self.connection.server_name, sharename))
         log.info("Connecting to SMB Tree %s" % smb_tree.share_name)
         smb_tree.connect()
         log.info("Creating open to PAExec file with delete on close flags")
@@ -121,7 +130,7 @@ class Client(object):
         log.info("Disconnecting from SMB Tree %s" % smb_tree.share_name)
         smb_tree.disconnect()
 
-    def cleanup(self):
+    def cleanup(self, sharename):
         """
         Cleans up any old services or payloads that may have been left behind
         on a previous failure. This will search C:\Windows for any files
@@ -142,8 +151,7 @@ class Client(object):
                 svc.open()
                 svc.delete()
 
-        smb_tree = TreeConnect(self.session,
-                               r"\\%s\%s" % (self.connection.server_name, sharename))
+        smb_tree = TreeConnect(self.session, r"\\%s\%s" % (self.connection.server_name, sharename))
         smb_tree.connect()
 
         share = Open(smb_tree, "")
@@ -268,8 +276,7 @@ class Client(object):
         log.debug("Making sure PAExec service is running")
         self._service.start()
 
-        smb_tree = TreeConnect(self.session,
-                               r"\\%s\IPC$" % self.connection.server_name)
+        smb_tree = TreeConnect(self.session, r"\\%s\IPC$" % self.connection.server_name)
         log.info("Connecting to SMB Tree %s" % smb_tree.share_name)
         smb_tree.connect()
 
