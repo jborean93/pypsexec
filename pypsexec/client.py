@@ -55,7 +55,7 @@ class Client(object):
         self._service = Service(self.service_name, self.session)
 
     @staticmethod #added-----------------------------------------------------------------------
-    def obscure_service_name(self):
+    def obscure_service_name():
         selection = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0987654321_- ";
         stringbuilder = [];
 
