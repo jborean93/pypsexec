@@ -43,7 +43,7 @@ class Client(object):
         if obscure:#added
             self.service_name = Client.obscure_service_name();#added
         else:#added
-            self.service_name = "PAExec-%d-%s" % (self.pid, self.current_host)
+            self.service_name = "PAExec"; # This doesn't need a new name everytime the service is created; makes a mess in the directories # OLD = "PAExec-%d-%s" % (self.pid, self.current_host)
 
         log.info("Creating PyPsexec Client with unique name: %s" % self.service_name)
         self._exe_file = "%s.exe" % self.service_name
@@ -107,7 +107,16 @@ class Client(object):
         smb_tree.disconnect()
 
         # create the PAExec service
-        service_path = r'"%SystemRoot%\{0}" -service'.format(self._exe_file)
+        # added ---------------------------------------------------------------
+        path_root = "SystemRoot";
+
+        if sharename.strip("$\n\t\r") is "C":
+            path_root = r"SystemDrive";
+        elif sharename.strip("$\n\t\r") is "ADMIN":
+            path_root = r"SystemRoot";
+        # added ---------------------------------------------------------------
+
+        service_path = r'"%{0}%\{1}" -service'.format(path_root, self._exe_file) # added
         log.info("Creating PAExec service %s" % self.service_name)
         self._service.create(service_path)
 
