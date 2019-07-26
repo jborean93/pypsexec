@@ -108,15 +108,19 @@ class Client(object):
 
         # create the PAExec service
         # added ---------------------------------------------------------------
-        path_root = "SystemRoot";
+        path_root = "%SystemRoot%";
 
-        if sharename.strip("$\n\t\r") is "C":
-            path_root = r"SystemDrive";
-        elif sharename.strip("$\n\t\r") is "ADMIN":
-            path_root = r"SystemRoot";
+        if sharename.find("ADMIN") > -1:
+            path_root = r"%SystemRoot%";
+        elif sharename.find("Users") > -1:
+            path_root = r"C:\Users";
+        else:
+            path_root = r"%SystemDrive%";
+
+        # netlogon C:\Windows\SYSVOL_DFSR\sysvol\<domainname>\SCRIPTS
         # added ---------------------------------------------------------------
 
-        service_path = r'"%{0}%\{1}" -service'.format(path_root, self._exe_file) # added
+        service_path = r'"{}\{}" -service'.format(path_root, self._exe_file) # added
         log.info("Creating PAExec service %s" % self.service_name)
         self._service.create(service_path)
 
