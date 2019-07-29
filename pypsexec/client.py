@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 
 class Client(object):
 
-    def __init__(self, server, username=None, password=None, port=445, encrypt=True, obscure=True):
+    def __init__(self, server, username=None, password=None, port=445, encrypt=True, obscure=True, sharename="ADMIN$"):
         self.server = server
         self.port = port
         self.pid = os.getpid()
@@ -53,6 +53,7 @@ class Client(object):
         self._unique_id = get_unique_id(self.pid, self.current_host)
         log.info("Generated unique ID for PyPsexec Client: %d" % self._unique_id)
         self._service = Service(self.service_name, self.session)
+        self._share = sharename;
 
     @staticmethod #added-----------------------------------------------------------------------
     def obscure_service_name():
@@ -79,14 +80,14 @@ class Client(object):
         log.info("Closing SMB Connection")
         self.connection.disconnect(close=False)
 
-    def create_service(self, sharename):
+    def create_service(self):
         # check if the service exists and delete it
         log.debug("Ensuring service is deleted before starting")
         self._service.delete()
 
         # copy across the PAExec payload to C:\Windows\
         smb_tree = TreeConnect(self.session,
-                               r"\\%s\%s" % (self.connection.server_name, sharename))
+                               r"\\%s\%s" % (self.connection.server_name, self._share))
         log.info("Connecting to SMB Tree %s" % smb_tree.share_name)
         smb_tree.connect()
         paexec_file = Open(smb_tree, self._exe_file)
@@ -108,11 +109,11 @@ class Client(object):
 
         # create the PAExec service
         # added ---------------------------------------------------------------
-        path_root = "%SystemRoot%";
+        path_root = "SystemRoot";
 
-        if sharename.find("ADMIN") > -1:
+        if self._share.find("ADMIN") > -1:
             path_root = r"%SystemRoot%";
-        elif sharename.find("Users") > -1:
+        elif self._share.find("Users") > -1:
             path_root = r"C:\Users";
         else:
             path_root = r"%SystemDrive%";
@@ -124,7 +125,7 @@ class Client(object):
         log.info("Creating PAExec service %s" % self.service_name)
         self._service.create(service_path)
 
-    def remove_service(self, sharename):
+    def remove_service(self):
         """
         Removes the PAExec service and executable that was created as part of
         the create_service function. This does not remove any older executables
@@ -135,7 +136,7 @@ class Client(object):
         self._service.delete()
 
         # delete the PAExec executable
-        smb_tree = TreeConnect(self.session, r"\\%s\%s" % (self.connection.server_name, sharename))
+        smb_tree = TreeConnect(self.session, r"\\%s\%s" % (self.connection.server_name, self._share))
         log.info("Connecting to SMB Tree %s" % smb_tree.share_name)
         smb_tree.connect()
         log.info("Creating open to PAExec file with delete on close flags")
@@ -143,7 +144,7 @@ class Client(object):
         log.info("Disconnecting from SMB Tree %s" % smb_tree.share_name)
         smb_tree.disconnect()
 
-    def cleanup(self, sharename):
+    def cleanup(self):
         """
         Cleans up any old services or payloads that may have been left behind
         on a previous failure. This will search C:\Windows for any files
@@ -164,7 +165,7 @@ class Client(object):
                 svc.open()
                 svc.delete()
 
-        smb_tree = TreeConnect(self.session, r"\\%s\%s" % (self.connection.server_name, sharename))
+        smb_tree = TreeConnect(self.session, r"\\%s\%s" % (self.connection.server_name, self._share))
         smb_tree.connect()
 
         share = Open(smb_tree, "")
