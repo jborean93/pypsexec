@@ -34,7 +34,7 @@ def paexec_out_stream(buffer_size=4096):
     :param buffer_size: The size of the buffer yielded
     :return:  (bytes, offset) = the butes and the offset of the bytes string
     """
-    b_data = pkgutil.get_data('pypsexec','paexec.exe')
+    b_data = pkgutil.get_data('pypsexec', 'paexec.exe')
     byte_count = len(b_data)
     for i in range(0, byte_count, buffer_size):
         yield b_data[i:i + buffer_size], i

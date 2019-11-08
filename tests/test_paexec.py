@@ -2,9 +2,6 @@
 # Copyright: (c) 2019, Jordan Borean (@jborean93) <jborean93@gmail.com>
 # MIT License (see LICENSE or https://opensource.org/licenses/MIT)
 
-
-import binascii
-import hashlib
 import pkgutil
 import pytest
 
@@ -36,11 +33,11 @@ def test_paexec_out_stream():
     for (data, offset) in paexec_out_stream(4096):
         count += 1
         actual += data
-        if count == 47:
-            assert len(actual) == 189112
+        if count == 49:
+            assert len(actual) == 199304
         else:
             assert len(actual) == count * 4096
-    assert count == 47
+    assert count == 49
     assert actual == pkgutil.get_data('pypsexec', 'paexec.exe')
 
 
