@@ -1,20 +1,54 @@
+# -*- coding: utf-8 -*-
+# Copyright: (c) 2019, Jordan Borean (@jborean93) <jborean93@gmail.com>
+# MIT License (see LICENSE or https://opensource.org/licenses/MIT)
+
 import logging
 import threading
 import warnings
 
-from abc import ABCMeta, abstractmethod
-from six import with_metaclass
-from smbprotocol.connection import NtStatus
-from smbprotocol.exceptions import SMBResponseException
-from smbprotocol.ioctl import CtlCode, IOCTLFlags, SMB2IOCTLRequest
-from smbprotocol.open import CreateDisposition, CreateOptions, \
-    FileAttributes, FilePipePrinterAccessMask, ImpersonationLevel, Open
-from smbprotocol.structure import BoolField, BytesField, IntField, Structure
+from abc import (
+    ABCMeta,
+    abstractmethod,
+)
 
-try:
-    from collections import OrderedDict
-except ImportError:  # pragma: no cover
-    from ordereddict import OrderedDict
+from collections import (
+    OrderedDict,
+)
+
+from six import (
+    with_metaclass,
+)
+
+from smbprotocol.connection import (
+    NtStatus,
+)
+
+from smbprotocol.exceptions import (
+    SMBResponseException,
+)
+
+from smbprotocol.ioctl import (
+    CtlCode,
+    IOCTLFlags,
+    SMB2IOCTLRequest,
+)
+
+from smbprotocol.open import (
+    CreateDisposition,
+    CreateOptions,
+    FileAttributes,
+    FilePipePrinterAccessMask,
+    ImpersonationLevel,
+    Open,
+)
+
+from smbprotocol.structure import (
+    BoolField,
+    BytesField,
+    IntField,
+    Structure,
+)
+
 
 log = logging.getLogger(__name__)
 

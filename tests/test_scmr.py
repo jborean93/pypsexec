@@ -1,22 +1,61 @@
+# -*- coding: utf-8 -*-
+# Copyright: (c) 2019, Jordan Borean (@jborean93) <jborean93@gmail.com>
+# MIT License (see LICENSE or https://opensource.org/licenses/MIT)
+
 import binascii
 import os
+import pkgutil
+import pytest
 import uuid
 
-import pytest
+from six import (
+    string_types,
+)
 
-from smbprotocol.connection import Connection
-from smbprotocol.session import Session
-from smbprotocol.tree import TreeConnect
-from smbprotocol.open import CreateDisposition, CreateOptions, \
-    FileAttributes, FilePipePrinterAccessMask, ImpersonationLevel, Open, \
-    ShareAccess
-from six import string_types
+from smbprotocol.connection import (
+    Connection,
+)
 
-from pypsexec.exceptions import PDUException, PypsexecException, SCMRException
-from pypsexec.paexec import PAEXEC_DATA
-from pypsexec.rpc import DataRepresentationFormat, FaultPDU, ResponsePDU
-from pypsexec.scmr import ControlsAccepted, CurrentState, DesiredAccess, \
-    EnumServiceState, SCMRApi, Service, ServiceStatus, ServiceType
+from smbprotocol.session import (
+    Session,
+)
+
+from smbprotocol.tree import (
+    TreeConnect,
+)
+
+from smbprotocol.open import (
+    CreateDisposition,
+    CreateOptions,
+    FileAttributes,
+    FilePipePrinterAccessMask,
+    ImpersonationLevel,
+    Open,
+    ShareAccess,
+)
+
+from pypsexec.exceptions import (
+    PDUException,
+    PypsexecException,
+    SCMRException,
+)
+
+from pypsexec.rpc import (
+    DataRepresentationFormat,
+    FaultPDU,
+    ResponsePDU,
+)
+
+from pypsexec.scmr import (
+    ControlsAccepted,
+    CurrentState,
+    DesiredAccess,
+    EnumServiceState,
+    SCMRApi,
+    Service,
+    ServiceStatus,
+    ServiceType,
+)
 
 
 class TestServiceStatus(object):
@@ -182,7 +221,7 @@ class TestServiceFunctional(object):
                                    ShareAccess.FILE_SHARE_READ,
                                    CreateDisposition.FILE_OVERWRITE_IF,
                                    CreateOptions.FILE_NON_DIRECTORY_FILE)
-                paexec_file.write(binascii.unhexlify(PAEXEC_DATA), 0)
+                paexec_file.write(binascii.unhexlify(pkgutil.get_data('pypsexec', 'paexec.exe')), 0)
                 paexec_file.close(get_attributes=False)
 
                 yield session

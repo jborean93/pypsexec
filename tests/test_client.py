@@ -1,22 +1,57 @@
+# -*- coding: utf-8 -*-
+# Copyright: (c) 2019, Jordan Borean (@jborean93) <jborean93@gmail.com>
+# MIT License (see LICENSE or https://opensource.org/licenses/MIT)
+
 import os
+import pytest
 import sys
 import time
 
-import pytest
+from pypsexec.client import (
+    Client,
+)
 
-from pypsexec.client import Client
-from pypsexec.exceptions import PAExecException, PypsexecException
-from pypsexec.paexec import ProcessPriority
-from pypsexec.pipe import OutputPipe
-from pypsexec.scmr import EnumServiceState, Service, ServiceType
+from pypsexec.exceptions import (
+    PAExecException,
+    PypsexecException,
+)
 
-from smbprotocol.connection import NtStatus
-from smbprotocol.exceptions import SMBResponseException
-from smbprotocol.open import CreateDisposition, CreateOptions, \
-    DirectoryAccessMask, FileAttributes, FileInformationClass, \
-    ImpersonationLevel, Open, ShareAccess
-from smbprotocol.tree import TreeConnect
+from pypsexec.paexec import (
+    ProcessPriority,
+)
 
+from pypsexec.pipe import (
+    OutputPipe,
+)
+
+from pypsexec.scmr import (
+    EnumServiceState,
+    Service,
+    ServiceType,
+)
+
+from smbprotocol.connection import (
+    NtStatus,
+)
+
+from smbprotocol.exceptions import (
+    SMBResponseException,
+)
+
+from smbprotocol.open import (
+    CreateDisposition,
+    CreateOptions,
+    DirectoryAccessMask,
+    FileAttributes,
+    FileInformationClass,
+    ImpersonationLevel,
+    Open,
+    ShareAccess,
+)
+
+from smbprotocol.tree import (
+    TreeConnect,
+)
 
 if sys.version[0] == '2':
     from Queue import Queue
