@@ -1,5 +1,5 @@
-# Windows Server 2016
-image: Visual Studio 2017
+# Windows Server 2019
+image: Visual Studio 2019
 
 environment:
   global:
@@ -18,6 +18,8 @@ environment:
   - PYTHON: Python35-x64
   - PYTHON: Python36
   - PYTHON: Python36-x64
+  - PYTHON: Python37
+  - PYTHON: Python37-x64
 
 init:
 - ps: |
@@ -29,12 +31,12 @@ init:
     $env:PYPSEXEC_PASSWORD = [Microsoft.Win32.Registry]::GetValue("HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Winlogon", "DefaultPassword", '')
 
 install:
-- ps: |
-    pip install -U pip setuptools
-    pip install .
-    pip install -r requirements-test.txt
+- cmd: python -m pip install --upgrade pip
+- cmd: pip install --upgrade setuptools
+- cmd: pip install -r requirements-test.txt
+- cmd: pip install .
 
 build: off  # Do not run MSBuild, build stuff at install step
 
 test_script:
-- ps: py.test -v --instafail --pep8 --cov pypsexec --cov-report term-missing
+- ps: py.test -v --pep8 --cov pypsexec --cov-report term-missing
