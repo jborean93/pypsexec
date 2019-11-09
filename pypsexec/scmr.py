@@ -647,11 +647,8 @@ class SCMRApi(object):
         return_code = struct.unpack("<i", res)[0]
         self._parse_error(return_code, "RStartServiceW")
 
-    def create_service_w(self, server_handle, service_name,
-                               display_name, desired_access, service_type,
-                               start_type, error_control, path,
-                               load_order_group, tag_id, dependencies,
-                               username, password):
+    def create_service_w(self, server_handle, service_name, display_name, desired_access, service_type, start_type,
+                         error_control, path, load_order_group, tag_id, dependencies, username, password):
         # https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/6a8ca926-9477-4dd4-b766-692fab07227e
         opnum = 12
 
