@@ -273,10 +273,10 @@ class Client(object):
             applied when username is applied)
         :param username: (String) The username to run the process as, if not
             set then either the SMB Session account is used or
-            NT AUTHORITY\SYSTEM (use_system_account=True) is used
+            NT AUTHORITY\\SYSTEM (use_system_account=True) is used
         :param password: (String) The password for the username account
         :param use_system_account: (Bool) Whether to use the
-            NT AUTHORITY\SYSTEM account isn't of a normal user
+            NT AUTHORITY\\SYSTEM account isn't of a normal user
         :param working_dir: (String) The working directory that is used when
             spawning the process
         :param show_ui_on_win_logon: (Bool) Whether to display the UI on the
