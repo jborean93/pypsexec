@@ -1,7 +1,15 @@
+# -*- coding: utf-8 -*-
+# Copyright: (c) 2019, Jordan Borean (@jborean93) <jborean93@gmail.com>
+# MIT License (see LICENSE or https://opensource.org/licenses/MIT)
+
 import pytest
 
-from pypsexec.exceptions import PAExecException, PDUException, \
-    PypsexecException, SCMRException
+from pypsexec.exceptions import (
+    PAExecException,
+    PDUException,
+    PypsexecException,
+    SCMRException,
+)
 
 
 class TestPypsexecException(object):

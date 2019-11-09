@@ -1,14 +1,30 @@
-import binascii
-import hashlib
+# -*- coding: utf-8 -*-
+# Copyright: (c) 2019, Jordan Borean (@jborean93) <jborean93@gmail.com>
+# MIT License (see LICENSE or https://opensource.org/licenses/MIT)
 
+import pkgutil
 import pytest
 
-from datetime import datetime
+from datetime import (
+    datetime,
+)
 
-from pypsexec.exceptions import PAExecException
-from pypsexec.paexec import PAEXEC_DATA, PAExecFileInfo, PAExecMsg, \
-    PAExecMsgId, PAExecSettingsBuffer, PAExecSettingsMsg, PAExecStartBuffer, \
-    PAExecReturnBuffer, ProcessPriority, paexec_out_stream, get_unique_id
+from pypsexec.exceptions import (
+    PAExecException,
+)
+
+from pypsexec.paexec import (
+    PAExecFileInfo,
+    PAExecMsg,
+    PAExecMsgId,
+    PAExecSettingsBuffer,
+    PAExecSettingsMsg,
+    PAExecStartBuffer,
+    PAExecReturnBuffer,
+    ProcessPriority,
+    paexec_out_stream,
+    get_unique_id,
+)
 
 
 def test_paexec_out_stream():
@@ -17,12 +33,12 @@ def test_paexec_out_stream():
     for (data, offset) in paexec_out_stream(4096):
         count += 1
         actual += data
-        if count == 47:
-            assert len(actual) == 189112
+        if count == 49:
+            assert len(actual) == 199304
         else:
             assert len(actual) == count * 4096
-    assert count == 47
-    assert actual == binascii.unhexlify(PAEXEC_DATA)
+    assert count == 49
+    assert actual == pkgutil.get_data('pypsexec', 'paexec.exe')
 
 
 def test_get_unique_id():
@@ -622,16 +638,3 @@ class TestPAExecReturnBuffer(object):
         assert len(actual) == 4
         assert data == b""
         assert actual['return_code'].get_value() == 10
-
-
-class TestPAExecData(object):
-
-    def test_verify_checksum(self):
-        # just a basic test to ensure we don't accidentally change the data
-        data = binascii.unhexlify(PAEXEC_DATA)
-        expected = b"\x01\xa4\x61\xad\x68\xd1\x1b\x5b" \
-                   b"\x50\x96\xf4\x5e\xb5\x4d\xf9\xba" \
-                   b"\x62\xc5\xaf\x41\x3f\xa9\xeb\x54" \
-                   b"\x4e\xac\xb5\x98\x37\x3a\x26\xbc"
-        actual = hashlib.sha256(data).digest()
-        assert actual == expected

@@ -1,14 +1,27 @@
+# -*- coding: utf-8 -*-
+# Copyright: (c) 2019, Jordan Borean (@jborean93) <jborean93@gmail.com>
+# MIT License (see LICENSE or https://opensource.org/licenses/MIT)
+
 import struct
 
-from smbprotocol.structure import BytesField, EnumField, \
-    FlagField, IntField, ListField, Structure, StructureField, UuidField
+from collections import (
+    OrderedDict,
+)
 
-from pypsexec.exceptions import PDUException
+from smbprotocol.structure import (
+    BytesField,
+    EnumField,
+    FlagField,
+    IntField,
+    ListField,
+    Structure,
+    StructureField,
+    UuidField,
+)
 
-try:
-    from collections import OrderedDict
-except ImportError:  # pragma: no cover
-    from ordereddict import OrderedDict
+from pypsexec.exceptions import (
+    PDUException,
+)
 
 
 def parse_pdu(data):

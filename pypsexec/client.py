@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+# Copyright: (c) 2019, Jordan Borean (@jborean93) <jborean93@gmail.com>
+# MIT License (see LICENSE or https://opensource.org/licenses/MIT)
+
 import logging
 import os
 import socket
@@ -5,20 +9,62 @@ import sys
 import time
 import uuid
 
-from smbprotocol.connection import Connection, NtStatus
-from smbprotocol.exceptions import SMBResponseException
-from smbprotocol.open import CreateDisposition, CreateOptions, \
-    DirectoryAccessMask, FileAttributes, FileInformationClass, \
-    FilePipePrinterAccessMask, ImpersonationLevel, Open, ShareAccess
-from smbprotocol.session import Session
-from smbprotocol.tree import TreeConnect
+from smbprotocol.connection import (
+    Connection,
+    NtStatus,
+)
 
-from pypsexec.exceptions import PypsexecException
-from pypsexec.paexec import PAExecMsg, PAExecMsgId, PAExecReturnBuffer, \
-    PAExecSettingsBuffer, PAExecSettingsMsg, PAExecStartBuffer, \
-    ProcessPriority, get_unique_id, paexec_out_stream
-from pypsexec.pipe import InputPipe, OutputPipeBytes, open_pipe
-from pypsexec.scmr import EnumServiceState, Service, ServiceType
+from smbprotocol.exceptions import (
+    SMBResponseException,
+)
+
+from smbprotocol.open import (
+    CreateDisposition,
+    CreateOptions,
+    DirectoryAccessMask,
+    FileAttributes,
+    FileInformationClass,
+    FilePipePrinterAccessMask,
+    ImpersonationLevel,
+    Open,
+    ShareAccess,
+)
+
+from smbprotocol.session import (
+    Session,
+)
+
+from smbprotocol.tree import (
+    TreeConnect,
+)
+
+from pypsexec.exceptions import (
+    PypsexecException,
+)
+
+from pypsexec.paexec import (
+    PAExecMsg,
+    PAExecMsgId,
+    PAExecReturnBuffer,
+    PAExecSettingsBuffer,
+    PAExecSettingsMsg,
+    PAExecStartBuffer,
+    ProcessPriority,
+    get_unique_id,
+    paexec_out_stream,
+)
+
+from pypsexec.pipe import (
+    InputPipe,
+    OutputPipeBytes,
+    open_pipe,
+)
+
+from pypsexec.scmr import (
+    EnumServiceState,
+    Service,
+    ServiceType,
+)
 
 if sys.version[0] == '2':
     from Queue import Empty
@@ -124,7 +170,7 @@ class Client(object):
     def cleanup(self):
         """
         Cleans up any old services or payloads that may have been left behind
-        on a previous failure. This will search C:\Windows for any files
+        on a previous failure. This will search C:\\Windows for any files
         starting with PAExec-*.exe and delete them. It will also stop and
         remove any services that start with PAExec-* if they exist.
 
@@ -201,7 +247,7 @@ class Client(object):
         The default configuration for a process (with no changes) is;
             User: The user that authenticated the SMB Session
             Elevation: Highest possible
-            Working Dir: %SYSTEM_ROOT%\System32
+            Working Dir: %SYSTEM_ROOT%\\System32
             Interactive: False
             Priority: Normal
 
@@ -227,10 +273,10 @@ class Client(object):
             applied when username is applied)
         :param username: (String) The username to run the process as, if not
             set then either the SMB Session account is used or
-            NT AUTHORITY\SYSTEM (use_system_account=True) is used
+            NT AUTHORITY\\SYSTEM (use_system_account=True) is used
         :param password: (String) The password for the username account
         :param use_system_account: (Bool) Whether to use the
-            NT AUTHORITY\SYSTEM account isn't of a normal user
+            NT AUTHORITY\\SYSTEM account isn't of a normal user
         :param working_dir: (String) The working directory that is used when
             spawning the process
         :param show_ui_on_win_logon: (Bool) Whether to display the UI on the

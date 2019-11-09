@@ -1,25 +1,67 @@
+# -*- coding: utf-8 -*-
+# Copyright: (c) 2019, Jordan Borean (@jborean93) <jborean93@gmail.com>
+# MIT License (see LICENSE or https://opensource.org/licenses/MIT)
+
 import logging
 import struct
 import uuid
 
-from smbprotocol.connection import NtStatus
-from smbprotocol.exceptions import SMBResponseException
-from smbprotocol.ioctl import CtlCode, IOCTLFlags, SMB2IOCTLRequest, \
-    SMB2IOCTLResponse
-from smbprotocol.open import CreateDisposition, CreateOptions, \
-    FilePipePrinterAccessMask, ImpersonationLevel, Open, ShareAccess
-from smbprotocol.structure import IntField, EnumField, FlagField, Structure
-from smbprotocol.tree import TreeConnect
+from collections import (
+    OrderedDict,
+)
 
-from pypsexec.exceptions import PypsexecException, SCMRException
-from pypsexec.rpc import BindAckPDU, BindPDU, ContextElement, \
-    DataRepresentationFormat, PDUException, parse_pdu, \
-    PFlags, RequestPDU, ResponsePDU, SyntaxIdElement
+from smbprotocol.connection import (
+    NtStatus,
+)
 
-try:
-    from collections import OrderedDict
-except ImportError:  # pragma: no cover
-    from ordereddict import OrderedDict
+from smbprotocol.exceptions import (
+    SMBResponseException,
+)
+
+from smbprotocol.ioctl import (
+    CtlCode,
+    IOCTLFlags,
+    SMB2IOCTLRequest,
+    SMB2IOCTLResponse,
+)
+
+from smbprotocol.open import (
+    CreateDisposition,
+    CreateOptions,
+    FilePipePrinterAccessMask,
+    ImpersonationLevel,
+    Open,
+    ShareAccess,
+)
+
+from smbprotocol.structure import (
+    IntField,
+    EnumField,
+    FlagField,
+    Structure,
+)
+
+from smbprotocol.tree import (
+    TreeConnect,
+)
+
+from pypsexec.exceptions import (
+    PypsexecException,
+    SCMRException,
+)
+
+from pypsexec.rpc import (
+    BindAckPDU,
+    BindPDU,
+    ContextElement,
+    DataRepresentationFormat,
+    PDUException,
+    parse_pdu,
+    PFlags,
+    RequestPDU,
+    ResponsePDU,
+    SyntaxIdElement,
+)
 
 log = logging.getLogger(__name__)
 

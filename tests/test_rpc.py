@@ -1,13 +1,35 @@
-import uuid
+# -*- coding: utf-8 -*-
+# Copyright: (c) 2019, Jordan Borean (@jborean93) <jborean93@gmail.com>
+# MIT License (see LICENSE or https://opensource.org/licenses/MIT)
 
 import pytest
+import uuid
 
-from pypsexec.exceptions import PDUException
-from pypsexec.rpc import BindAckPDU, BindNakPDU, BindNakReason, BindPDU, \
-    ContextElement, ContextResult, DataRepresentationFormat, FaultPDU, \
-    FaultStatus, FloatingPointRepresentation, IntegerCharacterRepresentation, \
-    PFlags, PType, RequestPDU, ResponsePDU, Result, ResultReason, \
-    SyntaxIdElement, parse_pdu
+from pypsexec.exceptions import (
+    PDUException,
+)
+
+from pypsexec.rpc import (
+    BindAckPDU,
+    BindNakPDU,
+    BindNakReason,
+    BindPDU,
+    ContextElement,
+    ContextResult,
+    DataRepresentationFormat,
+    FaultPDU,
+    FaultStatus,
+    FloatingPointRepresentation,
+    IntegerCharacterRepresentation,
+    PFlags,
+    PType,
+    RequestPDU,
+    ResponsePDU,
+    Result,
+    ResultReason,
+    SyntaxIdElement,
+    parse_pdu,
+)
 
 
 def test_parse_pdu_known():
