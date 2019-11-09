@@ -377,6 +377,18 @@ class TestClientFunctional(object):
         assert actual[2] != 0
         time.sleep(1)
 
+    @pytest.mark.parametrize('wow, expected', [(None, 8), (False, 8), (True, 4)])
+    def test_process_architecture(self, wow, expected, client):
+        kwargs = {
+            'arguments': '[System.IntPtr]::Size',
+        }
+        if wow is not None:
+            kwargs['wow64'] = wow
+
+        actual = client.run_executable('powershell.exe', **kwargs)
+
+        assert int(actual[0].rstrip(b'\r\n')) == expected
+
     def test_cleanup_with_older_processes(self, client):
         # create a new service with different pid and service name
         username = os.environ['PYPSEXEC_USERNAME']

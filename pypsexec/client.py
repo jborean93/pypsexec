@@ -238,7 +238,7 @@ class Client(object):
                        priority=ProcessPriority.NORMAL_PRIORITY_CLASS,
                        remote_log_path=None, timeout_seconds=0,
                        stdout=OutputPipeBytes, stderr=OutputPipeBytes,
-                       stdin=None):
+                       stdin=None, wow64=False):
         """
         Runs a command over the PAExec/PSExec interface based on the options
         provided. At a minimum the executable argument is required and the
@@ -298,6 +298,7 @@ class Client(object):
             stderr
         :param stdin: Either a byte string of generator that yields multiple
             byte strings to send over the stdin pipe.
+        :param wow64: Set to True to run the executable as a 32-bit process.
         :return: Tuple(stdout, stderr, rc)
             stdout: (Bytes) The stdout.get_bytes() return result
             stderr: (Bytes) The stderr.get_bytes() return result
@@ -337,6 +338,7 @@ class Client(object):
         settings['arguments'] = self._encode_string(arguments)
         settings['remote_log_path'] = self._encode_string(remote_log_path)
         settings['timeout_seconds'] = timeout_seconds
+        settings['disable_file_redirection'] = not wow64
 
         input_data = PAExecSettingsMsg()
         input_data['unique_id'] = self._unique_id
