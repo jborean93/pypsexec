@@ -132,6 +132,7 @@ that is being used. What pypsexec requires on the host is;
 * The above usually means the configured user is an administrator of the Windows host
 * At least SMB 2 on the host (Server 2008 and newer)
 * The connection user has a full logon token that is not filtered by UAC
+* If connecting to localhost and `pywin32` is installed, the script must be run as a user with Administrator privileges
 
 ### Firewall Setup
 
@@ -327,6 +328,7 @@ how the remote process will work. These args are;
 * `stdout`: (pipe.OutputPipe) A class that implements pipe.OutputPipe that controls how the stdout output is processed and returned, will default to returning the byte string of the stdout. Is ignored when `interactive=True` and `asynchronous=True`
 * `stderr`: (pipe.OutputPipe) A class that implements pipe.OutputPipe that controls how the stderr output is processed and returned, will default to returning the byte string of the stderr. Is ignored when `interactive=True` and `asynchronous=True`
 * `stdin`: (bytes/generator) A byte string or generator that yields a byte string to send over the stdin pipe, does not work with `interactive=True` and `asynchronous=True`
+* `wow64`: (bool) Set to `True` to run the executable in 32-bit mode on 64-bit systems. This does nothing on 32-bit systems, default `False`
 
 
 ## Logging
