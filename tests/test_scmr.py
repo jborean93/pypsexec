@@ -221,7 +221,7 @@ class TestServiceFunctional(object):
                                    ShareAccess.FILE_SHARE_READ,
                                    CreateDisposition.FILE_OVERWRITE_IF,
                                    CreateOptions.FILE_NON_DIRECTORY_FILE)
-                paexec_file.write(binascii.unhexlify(pkgutil.get_data('pypsexec', 'paexec.exe')), 0)
+                paexec_file.write(pkgutil.get_data('pypsexec', 'paexec.exe'), 0)
                 paexec_file.close(get_attributes=False)
 
                 yield session
@@ -229,7 +229,7 @@ class TestServiceFunctional(object):
                 paexec_file.create(ImpersonationLevel.Impersonation,
                                    FilePipePrinterAccessMask.DELETE,
                                    FileAttributes.FILE_ATTRIBUTE_NORMAL,
-                                   0,
+                                   ShareAccess.FILE_SHARE_DELETE,
                                    CreateDisposition.FILE_OVERWRITE_IF,
                                    CreateOptions.FILE_DELETE_ON_CLOSE)
                 paexec_file.close(get_attributes=False)
