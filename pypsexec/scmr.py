@@ -342,7 +342,7 @@ class Service(object):
         if self._handle:
             return
 
-        self._handle = self._scmr.create_service_wow64_w(
+        self._handle = self._scmr.create_service_w(
             self._scmr_handle,
             self.name,
             self.name,
@@ -647,13 +647,10 @@ class SCMRApi(object):
         return_code = struct.unpack("<i", res)[0]
         self._parse_error(return_code, "RStartServiceW")
 
-    def create_service_wow64_w(self, server_handle, service_name,
-                               display_name, desired_access, service_type,
-                               start_type, error_control, path,
-                               load_order_group, tag_id, dependencies,
-                               username, password):
-        # https://msdn.microsoft.com/en-us/library/cc245925.aspx
-        opnum = 45
+    def create_service_w(self, server_handle, service_name, display_name, desired_access, service_type, start_type,
+                         error_control, path, load_order_group, tag_id, dependencies, username, password):
+        # https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/6a8ca926-9477-4dd4-b766-692fab07227e
+        opnum = 12
 
         data = server_handle
         data += self._marshal_string(service_name)
@@ -679,11 +676,11 @@ class SCMRApi(object):
         pass_len = len(pass_bytes) if password else 0
         data += struct.pack("<i", pass_len)
 
-        res = self._invoke("RCreateServiceWOW64W", opnum, data)
+        res = self._invoke("RCreateServiceW", opnum, data)
         tag_id = res[0:4]
         service_handle = res[4:24]
         return_code = struct.unpack("<i", res[24:])[0]
-        self._parse_error(return_code, "RCreateServiceWOW64W")
+        self._parse_error(return_code, "RCreateServiceW")
         return tag_id, service_handle
 
     def _invoke(self, function_name, opnum, data):
