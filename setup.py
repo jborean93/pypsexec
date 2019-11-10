@@ -19,7 +19,7 @@ setup(
     version='1.0.0',
     packages=['pypsexec'],
     install_requires=[
-        'smbprotocol',
+        'smbprotocol>=1.0.0',
         'six',
     ],
     include_package_data=True,

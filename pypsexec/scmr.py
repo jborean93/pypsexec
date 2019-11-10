@@ -10,6 +10,10 @@ from collections import (
     OrderedDict,
 )
 
+from smbclient import (
+    open_file,
+)
+
 from smbprotocol.connection import (
     NtStatus,
 )
@@ -25,24 +29,11 @@ from smbprotocol.ioctl import (
     SMB2IOCTLResponse,
 )
 
-from smbprotocol.open import (
-    CreateDisposition,
-    CreateOptions,
-    FilePipePrinterAccessMask,
-    ImpersonationLevel,
-    Open,
-    ShareAccess,
-)
-
 from smbprotocol.structure import (
     IntField,
     EnumField,
     FlagField,
     Structure,
-)
-
-from smbprotocol.tree import (
-    TreeConnect,
 )
 
 from pypsexec.exceptions import (
@@ -259,18 +250,17 @@ class ServiceStatus(Structure):
 
 class Service(object):
 
-    def __init__(self, name, smb_session):
+    def __init__(self, name, server):
         """
         Higher-level interface over SCMR to manage Windows services. This is
         customised for the PAExec service to really just be used in that
         scenario.
 
         :param name: The name of the service
-        :param smb_session: A connected SMB Session that can be used to connect
-            to the IPC$ tree.
+        :param server: The server to connect to.
         """
         self.name = name
-        self.smb_session = smb_session
+        self.server = server
 
         self._handle = None
         self._scmr = None
@@ -278,17 +268,15 @@ class Service(object):
 
     def open(self):
         if self._scmr:
-            log.debug("Handle for SCMR on %s is already open"
-                      % self.smb_session.connection.server_name)
+            log.debug("Handle for SCMR on %s is already open" % self.server)
             return
 
         # connect to the SCMR Endpoint
-        log.info("Opening handle for SCMR on %s"
-                 % self.smb_session.connection.server_name)
-        self._scmr = SCMRApi(self.smb_session)
+        log.info("Opening handle for SCMR on %s" % self.server)
+        self._scmr = SCMRApi(self.server)
         self._scmr.open()
         self._scmr_handle = self._scmr.open_sc_manager_w(
-            self.smb_session.connection.server_name,
+            self.server,
             None,
             DesiredAccess.SC_MANAGER_CONNECT |
             DesiredAccess.SC_MANAGER_CREATE_SERVICE |
@@ -392,27 +380,14 @@ class Service(object):
 
 class SCMRApi(object):
 
-    def __init__(self, smb_session):
-        # connect to the IPC tree and open a handle at svcctl
-        self.tree = TreeConnect(smb_session, r"\\%s\IPC$"
-                                % smb_session.connection.server_name)
-        self.handle = Open(self.tree, "svcctl")
+    def __init__(self, server):
+        self.server = server
+        self.handle = None
         self.call_id = 0
 
     def open(self):
-        log.debug("Connecting to SMB Tree %s for SCMR" % self.tree.share_name)
-        self.tree.connect()
-
-        log.debug("Opening handle to svcctl pipe")
-        self.handle.create(ImpersonationLevel.Impersonation,
-                           FilePipePrinterAccessMask.GENERIC_READ |
-                           FilePipePrinterAccessMask.GENERIC_WRITE,
-                           0,
-                           ShareAccess.FILE_SHARE_READ |
-                           ShareAccess.FILE_SHARE_WRITE |
-                           ShareAccess.FILE_SHARE_DELETE,
-                           CreateDisposition.FILE_OPEN,
-                           CreateOptions.FILE_NON_DIRECTORY_FILE)
+        log.debug("Connecting to IPC pipe svcctl for SCMR")
+        self.handle = open_file(r"\\%s\IPC$\svcctl" % self.server, mode='rb+', file_type='pipe', buffering=0)
 
         # we need to bind svcctl to SCManagerW over DCE/RPC
         bind = BindPDU()
@@ -471,7 +446,7 @@ class SCMRApi(object):
         self.handle.write(bind_data)
 
         log.info("Receiving bind result for svcctl")
-        bind_data = self.handle.read(0, 1024)
+        bind_data = self.handle.read(1024)
         bind_result = parse_pdu(bind_data)
         log.debug(str(bind_result))
         if not isinstance(bind_result, BindAckPDU):
@@ -480,8 +455,7 @@ class SCMRApi(object):
 
     def close(self):
         log.info("Closing bind to svcctl")
-        self.handle.close(False)
-        self.tree.disconnect()
+        self.handle.close()
 
     # SCMR Functions below
 
@@ -696,20 +670,20 @@ class SCMRApi(object):
 
         ioctl_request = SMB2IOCTLRequest()
         ioctl_request['ctl_code'] = CtlCode.FSCTL_PIPE_TRANSCEIVE
-        ioctl_request['file_id'] = self.handle.file_id
+        ioctl_request['file_id'] = self.handle.fd.file_id
         ioctl_request['max_output_response'] = 1024
         ioctl_request['flags'] = IOCTLFlags.SMB2_0_IOCTL_IS_FSCTL
         ioctl_request['buffer'] = req
 
-        session_id = self.tree.session.session_id
-        tree_id = self.tree.tree_connect_id
+        session_id = self.handle.fd.tree_connect.session.session_id
+        tree_id = self.handle.fd.tree_connect.tree_connect_id
         log.info("Sending svcctl RPC request for %s" % function_name)
         log.debug(str(req))
-        request = self.tree.session.connection.send(ioctl_request,
-                                                    sid=session_id,
-                                                    tid=tree_id)
+        request = self.handle.fd.connection.send(ioctl_request,
+                                                  sid=session_id,
+                                                  tid=tree_id)
         log.info("Receiving svcctl RPC response for %s" % function_name)
-        resp = self.tree.session.connection.receive(request)
+        resp = self.handle.fd.connection.receive(request)
         ioctl_resp = SMB2IOCTLResponse()
         ioctl_resp.unpack(resp['data'].get_value())
         log.debug(str(ioctl_resp))
