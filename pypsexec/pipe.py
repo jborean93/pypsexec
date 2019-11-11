@@ -91,7 +91,7 @@ def write_pipe(tree, name, in_buffer):
     log.debug("Starting input pipe listener for '%s'" % name)
     with _open_pipe(tree, name, 'wb') as pipe:
         while True:
-            pipe_in = in_buffer.read(MAX_PAYLOAD_SIZE)
+            pipe_in = in_buffer.readline()
             if pipe_in == b"":
                 log.debug("Input pipe listener for '%s' is empty, stopping listener" % name)
                 return

@@ -227,6 +227,7 @@ before the policies are enacted.
 Here is an example of how to run a command with this library
 
 ```
+import sys
 from pypsexec.client import Client
 
 # Creates an encrypted connection to the host with the username and password
@@ -235,6 +236,10 @@ with Client("hostname", username="username", password="password") as c:
 
     # Run a simple cmd.exe program with arguments
     stdout, stderr, rc = c.run_executable("cmd.exe", arguments="/c echo Hello World")
+
+    # Redirect the output to the console (first 2 return values are None)
+    _, _, rc = c.run_executable("cmd.exe", arguments="/c echo Hi console", stdout=sys.stdout.buffer,
+                                stderr=sys.stderr.buffer)
 
 # Set encrypt=False for Windows 7, Server 2008
 with Client("hostname", username="username", password="password", encrypt=False) as c:
