@@ -229,48 +229,27 @@ Here is an example of how to run a command with this library
 ```
 from pypsexec.client import Client
 
-# creates an encrypted connection to the host with the username and password
-c = Client("hostname", username="username", password="password")
+# Creates an encrypted connection to the host with the username and password
+with Client("hostname", username="username", password="password") as c:
+    # After creating the service, you can run multiple exe's without reconnecting
 
-# set encrypt=False for Windows 7, Server 2008
-c = Client("hostname", username="username", password="password", encrypt=False)
+    # Run a simple cmd.exe program with arguments
+    stdout, stderr, rc = c.run_executable("cmd.exe", arguments="/c echo Hello World")
 
-# if Kerberos is available, this will use the default credentials in the
-# credential cache
-c = Client("hostname")
-
-# you can also tell it to use a specific Kerberos principal in the cache
-# without a password
-c = Client("hostname", username="username@DOMAIN.LOCAL")
-
-c.connect()
-try:
-    c.create_service()
-
-    # After creating the service, you can run multiple exe's without
-    # reconnecting
-
-    # run a simple cmd.exe program with arguments
-    stdout, stderr, rc = c.run_executable("cmd.exe",
-                                          arguments="/c echo Hello World")
-
-    # run whoami.exe as the SYSTEM account
+# Set encrypt=False for Windows 7, Server 2008
+with Client("hostname", username="username", password="password", encrypt=False) as c:
+    # Run whoami.exe as the SYSTEM account
     stdout, stderr, rc = c.run_executable("whoami.exe", use_system_account=True)
 
+# If Kerberos is available, this will use the default credentials in the credential cache
+with Client("hostname") as c:
     # run command asynchronously (in background), the rc is the PID of the spawned service
-    stdout, stderr, rc = c.run_executable("longrunning.exe",
-                                          arguments="/s other args",
-                                          asynchronous=True)
+    stdout, stderr, rc = c.run_executable("longrunning.exe", arguments="/s other args", asynchronous=True)
 
-    # run whoami.exe as a specific user
-    stdout, stderr, rc = c.run_executable("whoami",
-                                          arguments="/all",
-                                          username="local-user",
-                                          password="password",
-                                          run_elevated=True)
-finally:
-    c.remove_service()
-    c.disconnect()
+# you can also tell it to use a specific Kerberos principal in the cache without a password
+with Client("hostname", username="username@DOMAIN.LOCAL") as c:
+    stdout, stderr, rc = c.run_executable("whoami", arguments="/all", username="local-user",
+                                          password="password", run_elevated=True)
 ```
 
 In the case of a fatal failure, this project may leave behind some the PAExec
@@ -325,9 +304,9 @@ how the remote process will work. These args are;
 * `priority`: (pypsexec.ProcessPriority) The priority level of the process, default `NORMAL_PRIORITY_CLASS`
 * `remote_log_path`: (string) A path on the remote host to log the PAExec service details
 * `timeout_seconds`: (int) The maximum time the process can run for, default is `0` (no timeout)
-* `stdout`: (pipe.OutputPipe) A class that implements pipe.OutputPipe that controls how the stdout output is processed and returned, will default to returning the byte string of the stdout. Is ignored when `interactive=True` and `asynchronous=True`
-* `stderr`: (pipe.OutputPipe) A class that implements pipe.OutputPipe that controls how the stderr output is processed and returned, will default to returning the byte string of the stderr. Is ignored when `interactive=True` and `asynchronous=True`
-* `stdin`: (bytes/generator) A byte string or generator that yields a byte string to send over the stdin pipe, does not work with `interactive=True` and `asynchronous=True`
+* `stdout`: An IO stream that can be written to. The process' stdout will be written to this stream as it is received. When set to `None` the stdout is returned as a byte string of this function (default: None).
+* `stderr`: An IO stream that can be written to. The process' stderr will be written to this stream as it is received. When set to `None` the stderr is returned as a byte string of this function (default: None).
+* `stdin`: A byte string or IO stream that can be read. The bytes read from this stream is sent to the process' stdin pipe.
 * `wow64`: (bool) Set to `True` to run the executable in 32-bit mode on 64-bit systems. This does nothing on 32-bit systems, default `False`
 
 

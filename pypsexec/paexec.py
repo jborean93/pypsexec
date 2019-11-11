@@ -13,12 +13,13 @@ from collections import (
 from smbprotocol.structure import (
     BoolField,
     BytesField,
+    DateTimeField,
     EnumField,
     IntField,
     ListField,
     Structure,
     StructureField,
-    DateTimeField,
+    TextField,
 )
 
 from pypsexec.exceptions import PAExecException
@@ -249,14 +250,16 @@ class PAExecSettingsBuffer(Structure):
                 size=4,
                 default=lambda s: int(len(s['password']) / 2)
             )),
-            ('password', BytesField(
+            ('password', TextField(
+                encoding='utf-16-le',
                 size=lambda s: s['password_len'].get_value() * 2
             )),
             ('username_len', IntField(
                 size=4,
                 default=lambda s: int(len(s['username']) / 2)
             )),
-            ('username', BytesField(
+            ('username', TextField(
+                encoding='utf-16-le',
                 size=lambda s: s['username_len'].get_value() * 2
             )),
             ('use_system_account', BoolField(size=1)),
@@ -264,7 +267,8 @@ class PAExecSettingsBuffer(Structure):
                 size=4,
                 default=lambda s: int(len(s['working_dir']) / 2)
             )),
-            ('working_dir', BytesField(
+            ('working_dir', TextField(
+                encoding='utf-16-le',
                 size=lambda s: s['working_dir_len'].get_value() * 2
             )),
             ('show_ui_on_win_logon', BoolField(size=1)),
@@ -277,14 +281,16 @@ class PAExecSettingsBuffer(Structure):
                 size=4,
                 default=lambda s: int(len(s['executable']) / 2)
             )),
-            ('executable', BytesField(
+            ('executable', TextField(
+                encoding='utf-16-le',
                 size=lambda s: s['executable_len'].get_value() * 2
             )),
             ('arguments_len', IntField(
                 size=4,
                 default=lambda s: int(len(s['arguments']) / 2)
             )),
-            ('arguments', BytesField(
+            ('arguments', TextField(
+                encoding='utf-16-le',
                 size=lambda s: s['arguments_len'].get_value() * 2
             )),
             ('disable_file_redirection', BoolField(size=1)),
@@ -293,7 +299,8 @@ class PAExecSettingsBuffer(Structure):
                 size=4,
                 default=lambda s: int(len(s['remote_log_path']) / 2)
             )),
-            ('remote_log_path', BytesField(
+            ('remote_log_path', TextField(
+                encoding='utf-16-le',
                 size=lambda s: s['remote_log_path_len'].get_value() * 2
             )),
             ('no_delete', BoolField(size=1)),
@@ -301,14 +308,16 @@ class PAExecSettingsBuffer(Structure):
                 size=4,
                 default=lambda s: int(len(s['src_dir']) / 2)
             )),
-            ('src_dir', BytesField(
+            ('src_dir', TextField(
+                encoding='utf-16-le',
                 size=lambda s: s['src_dir_len'].get_value() * 2
             )),
             ('dest_dir_len', IntField(
                 size=4,
                 default=lambda s: int(len(s['dest_dir']) / 2)
             )),
-            ('dest_dir', BytesField(
+            ('dest_dir', TextField(
+                encoding='utf-16-le',
                 size=lambda s: s['dest_dir_len'].get_value() * 2
             )),
             ('num_src_files', IntField(
@@ -369,7 +378,8 @@ class PAExecFileInfo(Structure):
                 size=4,
                 default=lambda s: int(len(s['filename']) / 2)
             )),
-            ('filename', BytesField(
+            ('filename', TextField(
+                encoding='utf-16-le',
                 size=lambda s: s['filename_len'].get_value() * 2
             )),
             ('file_last_write', DateTimeField(size=8)),
@@ -397,7 +407,8 @@ class PAExecStartBuffer(Structure):
                 size=4,
                 default=lambda s: int(len(s['comp_name']) / 2)
             )),
-            ('comp_name', BytesField(
+            ('comp_name', TextField(
+                encoding='utf-16-le',
                 size=lambda s: s['comp_name_length'].get_value() * 2
             ))
         ])

@@ -299,7 +299,7 @@ class Service(object):
             self._scmr.close()
             self._scmr = None
 
-    def start(self):
+    def start(self, strict=False):
         self._open_service()
         if self._handle is None:
             raise PypsexecException("Cannot start service %s as it does not "
@@ -308,8 +308,7 @@ class Service(object):
         try:
             self._scmr.start_service_w(self._handle)
         except SCMRException as exc:
-            if exc.return_code != \
-                    ScmrReturnValues.ERROR_SERVICE_ALREADY_RUNNING:
+            if strict or exc.return_code != ScmrReturnValues.ERROR_SERVICE_ALREADY_RUNNING:
                 raise exc
 
     def stop(self):
@@ -322,7 +321,10 @@ class Service(object):
             self._scmr.control_service(self._handle,
                                        ControlCode.SERVICE_CONTROL_STOP)
         except SCMRException as exc:
-            if exc.return_code != ScmrReturnValues.ERROR_SERVICE_NOT_ACTIVE:
+            if exc.return_code not in [
+                ScmrReturnValues.ERROR_SERVICE_NOT_ACTIVE,  # Service is stopped.
+                ScmrReturnValues.ERROR_SERVICE_CANNOT_ACCEPT_CTRL,  # Service is stopped or stopped pending.
+            ]:
                 raise exc
 
     def create(self, path):
@@ -353,7 +355,11 @@ class Service(object):
             return
 
         self.stop()
-        self._scmr.delete_service(self._handle)
+        try:
+            self._scmr.delete_service(self._handle)
+        except SCMRException as exc:
+            if exc.return_code != ScmrReturnValues.ERROR_SERVICE_MARKED_FOR_DELETE:
+                raise
 
     def _open_service(self):
         if self._handle:
@@ -400,8 +406,7 @@ class SCMRApi(object):
         context_ndr = ContextElement()
         context_ndr['context_id'] = 0
         context_ndr['abstract_syntax'] = SyntaxIdElement()
-        context_ndr['abstract_syntax']['uuid'] = \
-            uuid.UUID("367ABB81-9844-35F1-AD32-98F038001003")
+        context_ndr['abstract_syntax']['uuid'] = uuid.UUID("367ABB81-9844-35F1-AD32-98F038001003")
         context_ndr['abstract_syntax']['version'] = 2
 
         # https://msdn.microsoft.com/en-us/library/cc243843.aspx
@@ -415,8 +420,7 @@ class SCMRApi(object):
         context_bind = ContextElement()
         context_bind['context_id'] = 1
         context_bind['abstract_syntax'] = SyntaxIdElement()
-        context_bind['abstract_syntax']['uuid'] = \
-            uuid.UUID("367ABB81-9844-35F1-AD32-98F038001003")
+        context_bind['abstract_syntax']['uuid'] = uuid.UUID("367ABB81-9844-35F1-AD32-98F038001003")
         context_bind['abstract_syntax']['version'] = 2
 
         # https://msdn.microsoft.com/en-us/library/cc243715.aspx
@@ -549,11 +553,11 @@ class SCMRApi(object):
             ioctl_resp = SMB2IOCTLResponse()
             ioctl_resp.unpack(exc.header['data'].get_value())
             pdu_resp = self._parse_pdu(ioctl_resp['buffer'].get_value(), opnum)
-            read_data = self.handle.read(0, 3256)  # 4280 - 1024
+            read_data = self.handle.read(3256)  # 4280 - 1024
             data = pdu_resp + read_data
 
         while len(data) < buffer_size:
-            read_data = self.handle.read(0, 4280)
+            read_data = self.handle.read(4280)
             data += self._parse_pdu(read_data, opnum)
 
         return_code = struct.unpack("<i", data[-4:])[0]
@@ -679,9 +683,7 @@ class SCMRApi(object):
         tree_id = self.handle.fd.tree_connect.tree_connect_id
         log.info("Sending svcctl RPC request for %s" % function_name)
         log.debug(str(req))
-        request = self.handle.fd.connection.send(ioctl_request,
-                                                  sid=session_id,
-                                                  tid=tree_id)
+        request = self.handle.fd.connection.send(ioctl_request, sid=session_id, tid=tree_id)
         log.info("Receiving svcctl RPC response for %s" % function_name)
         resp = self.handle.fd.connection.receive(request)
         ioctl_resp = SMB2IOCTLResponse()

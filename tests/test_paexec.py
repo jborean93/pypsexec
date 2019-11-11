@@ -30,7 +30,7 @@ from pypsexec.paexec import (
 def test_paexec_out_stream():
     count = 0
     actual = b""
-    for (data, offset) in paexec_out_stream(4096):
+    for data in paexec_out_stream(4096):
         count += 1
         actual += data
         if count == 49:
@@ -96,8 +96,7 @@ class TestPAExecMsg(object):
         actual.unpack(data)
         with pytest.raises(PAExecException) as exc:
             actual.check_resp()
-        assert str(exc.value) == "Received exception from remote PAExec " \
-                                 "service: hi"
+        assert str(exc.value) == "Received exception from remote PAExec service: hi"
         assert exc.value.msg_id == PAExecMsgId.MSGID_FAILED
         assert exc.value.buffer == b"\x04\x00\x00\x00\x68\x00\x69\x00"
 
@@ -113,26 +112,26 @@ class TestPAExecSettingsMsg(object):
         buffer = PAExecSettingsBuffer()
         buffer['processors'] = [1, 2]
         buffer['interactive'] = True
-        buffer['password'] = "pass".encode('utf-16-le')
-        buffer['username'] = "user".encode('utf-16-le')
-        buffer['executable'] = "a.exe".encode('utf-16-le')
-        buffer['arguments'] = "arg1".encode('utf-16-le')
-        buffer['src_dir'] = "C:\\source".encode('utf-16-le')
-        buffer['dest_dir'] = "C:\\target".encode('utf-16-le')
+        buffer['password'] = u"pass"
+        buffer['username'] = u"user"
+        buffer['executable'] = u"a.exe"
+        buffer['arguments'] = u"arg1"
+        buffer['src_dir'] = u"C:\\source"
+        buffer['dest_dir'] = u"C:\\target"
 
         src_file_info1 = PAExecFileInfo()
-        src_file_info1['filename'] = "src1".encode('utf-16-le')
+        src_file_info1['filename'] = u"src1"
         src_file_info1['file_last_write'] = datetime.utcfromtimestamp(0)
         src_file_info2 = PAExecFileInfo()
-        src_file_info2['filename'] = "src2".encode('utf-16-le')
+        src_file_info2['filename'] = u"src2"
         src_file_info2['file_last_write'] = datetime.utcfromtimestamp(0)
         buffer['src_files'] = [src_file_info1, src_file_info2]
 
         dest_file_info1 = PAExecFileInfo()
-        dest_file_info1['filename'] = "dest1".encode('utf-16-le')
+        dest_file_info1['filename'] = u"dest1"
         dest_file_info1['file_last_write'] = datetime.utcfromtimestamp(0)
         dest_file_info2 = PAExecFileInfo()
-        dest_file_info2['filename'] = "dest2".encode('utf-16-le')
+        dest_file_info2['filename'] = u"dest2"
         dest_file_info2['file_last_write'] = datetime.utcfromtimestamp(0)
         buffer['dest_files'] = [dest_file_info1, dest_file_info2]
         message['buffer'] = buffer
@@ -240,46 +239,39 @@ class TestPAExecSettingsMsg(object):
         assert not actual['run_elevated'].get_value()
         assert not actual['run_limited'].get_value()
         assert actual['password_len'].get_value() == 4
-        assert actual['password'].get_value() == "pass".encode('utf-16-le')
+        assert actual['password'].get_value() == u"pass"
         assert actual['username_len'].get_value() == 4
-        assert actual['username'].get_value() == "user".encode('utf-16-le')
+        assert actual['username'].get_value() == u"user"
         assert not actual['use_system_account'].get_value()
         assert actual['working_dir_len'].get_value() == 0
-        assert actual['working_dir'].get_value() == b""
+        assert actual['working_dir'].get_value() == u""
         assert not actual['show_ui_on_win_logon'].get_value()
-        assert actual['priority'].get_value() == \
-            ProcessPriority.NORMAL_PRIORITY_CLASS
+        assert actual['priority'].get_value() == ProcessPriority.NORMAL_PRIORITY_CLASS
         assert actual['executable_len'].get_value() == 5
-        assert actual['executable'].get_value() == "a.exe".encode('utf-16-le')
+        assert actual['executable'].get_value() == u"a.exe"
         assert actual['arguments_len'].get_value() == 4
-        assert actual['arguments'].get_value() == "arg1".encode('utf-16-le')
+        assert actual['arguments'].get_value() == u"arg1"
         assert not actual['disable_file_redirection'].get_value()
         assert not actual['enable_debug'].get_value()
         assert actual['remote_log_path_len'].get_value() == 0
-        assert actual['remote_log_path'].get_value() == b""
+        assert actual['remote_log_path'].get_value() == u""
         assert not actual['no_delete'].get_value()
         assert actual['src_dir_len'].get_value() == 9
-        assert actual['src_dir'].get_value() == \
-            "C:\\source".encode('utf-16-le')
+        assert actual['src_dir'].get_value() == u"C:\\source"
         assert actual['dest_dir_len'].get_value() == 9
-        assert actual['dest_dir'].get_value() == \
-            "C:\\target".encode('utf-16-le')
+        assert actual['dest_dir'].get_value() == u"C:\\target"
         assert actual['num_src_files'].get_value() == 2
         src_files = actual['src_files'].get_value()
         assert len(src_files) == 2
         assert src_files[0]['filename_len'].get_value() == 4
-        assert src_files[0]['filename'].get_value() == \
-            "src1".encode('utf-16-le')
-        assert src_files[0]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+        assert src_files[0]['filename'].get_value() == u"src1"
+        assert src_files[0]['file_last_write'].get_value() == datetime.utcfromtimestamp(0)
         assert src_files[0]['file_version_ls'].get_value() == 0
         assert src_files[0]['file_version_ms'].get_value() == 0
         assert not src_files[0]['copy_file'].get_value()
         assert src_files[1]['filename_len'].get_value() == 4
-        assert src_files[1]['filename'].get_value() == \
-            "src2".encode('utf-16-le')
-        assert src_files[1]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+        assert src_files[1]['filename'].get_value() == u"src2"
+        assert src_files[1]['file_last_write'].get_value() == datetime.utcfromtimestamp(0)
         assert src_files[1]['file_version_ls'].get_value() == 0
         assert src_files[1]['file_version_ms'].get_value() == 0
         assert not src_files[1]['copy_file'].get_value()
@@ -287,18 +279,14 @@ class TestPAExecSettingsMsg(object):
         dest_files = actual['dest_files'].get_value()
         assert len(dest_files) == 2
         assert dest_files[0]['filename_len'].get_value() == 5
-        assert dest_files[0]['filename'].get_value() == \
-            "dest1".encode('utf-16-le')
-        assert dest_files[0]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+        assert dest_files[0]['filename'].get_value() == u"dest1"
+        assert dest_files[0]['file_last_write'].get_value() == datetime.utcfromtimestamp(0)
         assert dest_files[0]['file_version_ls'].get_value() == 0
         assert dest_files[0]['file_version_ms'].get_value() == 0
         assert not dest_files[0]['copy_file'].get_value()
         assert dest_files[1]['filename_len'].get_value() == 5
-        assert dest_files[1]['filename'].get_value() == \
-            "dest2".encode('utf-16-le')
-        assert dest_files[1]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+        assert dest_files[1]['filename'].get_value() == u"dest2"
+        assert dest_files[1]['file_last_write'].get_value() == datetime.utcfromtimestamp(0)
         assert dest_files[1]['file_version_ls'].get_value() == 0
         assert dest_files[1]['file_version_ms'].get_value() == 0
         assert not dest_files[1]['copy_file'].get_value()
@@ -311,26 +299,26 @@ class TestPAExecSettingsBuffer(object):
         message = PAExecSettingsBuffer()
         message['processors'] = [1, 2]
         message['interactive'] = True
-        message['password'] = "pass".encode('utf-16-le')
-        message['username'] = "user".encode('utf-16-le')
-        message['executable'] = "a.exe".encode('utf-16-le')
-        message['arguments'] = "arg1".encode('utf-16-le')
-        message['src_dir'] = "C:\\source".encode('utf-16-le')
-        message['dest_dir'] = "C:\\target".encode('utf-16-le')
+        message['password'] = u"pass"
+        message['username'] = u"user"
+        message['executable'] = u"a.exe"
+        message['arguments'] = u"arg1"
+        message['src_dir'] = u"C:\\source"
+        message['dest_dir'] = u"C:\\target"
 
         src_file_info1 = PAExecFileInfo()
-        src_file_info1['filename'] = "src1".encode('utf-16-le')
+        src_file_info1['filename'] = u"src1"
         src_file_info1['file_last_write'] = datetime.utcfromtimestamp(0)
         src_file_info2 = PAExecFileInfo()
-        src_file_info2['filename'] = "src2".encode('utf-16-le')
+        src_file_info2['filename'] = u"src2"
         src_file_info2['file_last_write'] = datetime.utcfromtimestamp(0)
         message['src_files'] = [src_file_info1, src_file_info2]
 
         dest_file_info1 = PAExecFileInfo()
-        dest_file_info1['filename'] = "dest1".encode('utf-16-le')
+        dest_file_info1['filename'] = u"dest1"
         dest_file_info1['file_last_write'] = datetime.utcfromtimestamp(0)
         dest_file_info2 = PAExecFileInfo()
-        dest_file_info2['filename'] = "dest2".encode('utf-16-le')
+        dest_file_info2['filename'] = u"dest2"
         dest_file_info2['file_last_write'] = datetime.utcfromtimestamp(0)
         message['dest_files'] = [dest_file_info1, dest_file_info2]
 
@@ -491,46 +479,39 @@ class TestPAExecSettingsBuffer(object):
         assert not actual['run_elevated'].get_value()
         assert not actual['run_limited'].get_value()
         assert actual['password_len'].get_value() == 4
-        assert actual['password'].get_value() == "pass".encode('utf-16-le')
+        assert actual['password'].get_value() == u"pass"
         assert actual['username_len'].get_value() == 4
-        assert actual['username'].get_value() == "user".encode('utf-16-le')
+        assert actual['username'].get_value() == u"user"
         assert not actual['use_system_account'].get_value()
         assert actual['working_dir_len'].get_value() == 0
-        assert actual['working_dir'].get_value() == b""
+        assert actual['working_dir'].get_value() == u""
         assert not actual['show_ui_on_win_logon'].get_value()
-        assert actual['priority'].get_value() == \
-            ProcessPriority.NORMAL_PRIORITY_CLASS
+        assert actual['priority'].get_value() == ProcessPriority.NORMAL_PRIORITY_CLASS
         assert actual['executable_len'].get_value() == 5
-        assert actual['executable'].get_value() == "a.exe".encode('utf-16-le')
+        assert actual['executable'].get_value() == u"a.exe"
         assert actual['arguments_len'].get_value() == 4
-        assert actual['arguments'].get_value() == "arg1".encode('utf-16-le')
+        assert actual['arguments'].get_value() == u"arg1"
         assert not actual['disable_file_redirection'].get_value()
         assert not actual['enable_debug'].get_value()
         assert actual['remote_log_path_len'].get_value() == 0
-        assert actual['remote_log_path'].get_value() == b""
+        assert actual['remote_log_path'].get_value() == u""
         assert not actual['no_delete'].get_value()
         assert actual['src_dir_len'].get_value() == 9
-        assert actual['src_dir'].get_value() == \
-            "C:\\source".encode('utf-16-le')
+        assert actual['src_dir'].get_value() == u"C:\\source"
         assert actual['dest_dir_len'].get_value() == 9
-        assert actual['dest_dir'].get_value() == \
-            "C:\\target".encode('utf-16-le')
+        assert actual['dest_dir'].get_value() == u"C:\\target"
         assert actual['num_src_files'].get_value() == 2
         src_files = actual['src_files'].get_value()
         assert len(src_files) == 2
         assert src_files[0]['filename_len'].get_value() == 4
-        assert src_files[0]['filename'].get_value() == \
-            "src1".encode('utf-16-le')
-        assert src_files[0]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+        assert src_files[0]['filename'].get_value() == u"src1"
+        assert src_files[0]['file_last_write'].get_value() == datetime.utcfromtimestamp(0)
         assert src_files[0]['file_version_ls'].get_value() == 0
         assert src_files[0]['file_version_ms'].get_value() == 0
         assert not src_files[0]['copy_file'].get_value()
         assert src_files[1]['filename_len'].get_value() == 4
-        assert src_files[1]['filename'].get_value() == \
-            "src2".encode('utf-16-le')
-        assert src_files[1]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+        assert src_files[1]['filename'].get_value() == u"src2"
+        assert src_files[1]['file_last_write'].get_value() == datetime.utcfromtimestamp(0)
         assert src_files[1]['file_version_ls'].get_value() == 0
         assert src_files[1]['file_version_ms'].get_value() == 0
         assert not src_files[1]['copy_file'].get_value()
@@ -538,18 +519,14 @@ class TestPAExecSettingsBuffer(object):
         dest_files = actual['dest_files'].get_value()
         assert len(dest_files) == 2
         assert dest_files[0]['filename_len'].get_value() == 5
-        assert dest_files[0]['filename'].get_value() == \
-            "dest1".encode('utf-16-le')
-        assert dest_files[0]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+        assert dest_files[0]['filename'].get_value() == u"dest1"
+        assert dest_files[0]['file_last_write'].get_value() == datetime.utcfromtimestamp(0)
         assert dest_files[0]['file_version_ls'].get_value() == 0
         assert dest_files[0]['file_version_ms'].get_value() == 0
         assert not dest_files[0]['copy_file'].get_value()
         assert dest_files[1]['filename_len'].get_value() == 5
-        assert dest_files[1]['filename'].get_value() == \
-            "dest2".encode('utf-16-le')
-        assert dest_files[1]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+        assert dest_files[1]['filename'].get_value() == u"dest2"
+        assert dest_files[1]['file_last_write'].get_value() == datetime.utcfromtimestamp(0)
         assert dest_files[1]['file_version_ls'].get_value() == 0
         assert dest_files[1]['file_version_ms'].get_value() == 0
         assert not dest_files[1]['copy_file'].get_value()
@@ -560,7 +537,7 @@ class TestPAExecFileInfo(object):
 
     def test_create_message(self):
         message = PAExecFileInfo()
-        message['filename'] = "file".encode('utf-16-le')
+        message['filename'] = u"file"
         message['file_last_write'] = datetime.utcfromtimestamp(0)
         message['file_version_ls'] = 10
         message['file_version_ms'] = 10
@@ -587,9 +564,8 @@ class TestPAExecFileInfo(object):
         assert len(actual) == 29
         assert data == b""
         assert actual['filename_len'].get_value() == 4
-        assert actual['filename'].get_value() == "file".encode('utf-16-le-')
-        assert actual['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+        assert actual['filename'].get_value() == u"file"
+        assert actual['file_last_write'].get_value() == datetime.utcfromtimestamp(0)
         assert actual['file_version_ls'].get_value() == 10
         assert actual['file_version_ms'].get_value() == 10
         assert actual['copy_file'].get_value()
@@ -600,7 +576,7 @@ class TestPAExecStartBuffer(object):
     def test_create_message(self):
         message = PAExecStartBuffer()
         message['process_id'] = 1234
-        message['comp_name'] = "comp".encode('utf-16-le')
+        message['comp_name'] = u"comp"
         expected = b"\xd2\x04\x00\x00" \
                    b"\x04\x00\x00\x00" \
                    b"\x63\x00\x6f\x00\x6d\x00\x70\x00"
@@ -618,7 +594,7 @@ class TestPAExecStartBuffer(object):
         assert data == b""
         assert actual['process_id'].get_value() == 1234
         assert actual['comp_name_length'].get_value() == 4
-        assert actual['comp_name'].get_value() == "comp".encode('utf-16-le')
+        assert actual['comp_name'].get_value() == u"comp"
 
 
 class TestPAExecReturnBuffer(object):
