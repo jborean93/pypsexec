@@ -14,6 +14,10 @@ from smbprotocol.connection import (
     NtStatus,
 )
 
+from pypsexec.modified_smbprotocol_connection import (
+    Connection as Connection_,
+)
+
 from smbprotocol.exceptions import (
     SMBResponseException,
 )
@@ -77,12 +81,18 @@ log = logging.getLogger(__name__)
 class Client(object):
 
     def __init__(self, server, username=None, password=None, port=445,
-                 encrypt=True):
-        self.server = server
-        self.port = port
+                 encrypt=True, **kargs):
+        if type(server) == socket.socket :
+            self.server = server.getpeername()[0]
+            self.port = server.getpeername()[1]
+            self.connection = Connection_(uuid.uuid4(), server)
+        else :
+            self.server = server
+            self.port = port
+            self.connection = Connection(uuid.uuid4(), server, port)
+
         self.pid = os.getpid()
         self.current_host = socket.gethostname()
-        self.connection = Connection(uuid.uuid4(), server, port)
         self.session = Session(self.connection, username, password,
                                require_encryption=encrypt)
 
@@ -99,6 +109,9 @@ class Client(object):
         log.info("Generated unique ID for PyPsexec Client: %d"
                  % self._unique_id)
         self._service = Service(self.service_name, self.session)
+
+        for attribute,value in kargs.items():
+            setattr(self, attribute, value)
 
     def connect(self, timeout=60):
         log.info("Setting up SMB Connection to %s:%d"
