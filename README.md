@@ -37,6 +37,7 @@ PsExec. Current you can use pypsexec to do the following;
 * Set a timeout for the remote process
 * Send input through the stdin pipe to the running process
 * Set the processors the process can run on
+* Upload arbitrary files to the target system. 
 
 
 ## Further Info
@@ -246,6 +247,10 @@ c = Client("hostname", username="username@DOMAIN.LOCAL")
 c.connect()
 try:
     c.create_service()
+
+    # After connecting, you can upload files to the c:\windows folder
+    # on the remote system without reconnecting.
+    c.upload("/full/path/to/file.ext", "name_of_target_file.ext")
 
     # After creating the service, you can run multiple exe's without
     # reconnecting

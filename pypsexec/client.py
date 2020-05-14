@@ -468,6 +468,44 @@ class Client(object):
         log.debug("RC: %d" % return_code)
         return stdout_out, stderr_bytes, return_code
 
+    def upload(self, local_path, target_file_name):
+        # copy across the file payload to C:\Windows\
+        smb_tree = TreeConnect(self.session,
+                               r"\\%s\ADMIN$" % self.connection.server_name)
+        log.info("Connecting to SMB Tree %s" % smb_tree.share_name)
+        smb_tree.connect()
+        target_file = Open(smb_tree, target_file_name)
+        log.debug("Creating target file")
+        target_file.create(ImpersonationLevel.Impersonation,
+                           FilePipePrinterAccessMask.FILE_WRITE_DATA,
+                           FileAttributes.FILE_ATTRIBUTE_NORMAL,
+                           ShareAccess.FILE_SHARE_READ,
+                           CreateDisposition.FILE_OVERWRITE_IF,
+                           CreateOptions.FILE_NON_DIRECTORY_FILE)
+        log.info("Writing to target %s\\%s"
+                 % (smb_tree.share_name, target_file_name))
+
+        for (data, o) in self.payload_out_stream(local_path, self.connection.max_write_size):
+            target_file.write(data, o)
+
+        log.debug("Closing open to payload file")
+        target_file.close(False)
+        log.info("Disconnecting from SMB Tree %s" % smb_tree.share_name)
+        smb_tree.disconnect()
+
+
+    def payload_out_stream(self, local_path, buffer_size=4096):
+        """
+        Creates a generator to read the given payload as a bytes stream.
+
+        :param buffer_size: The size of the buffer yielded
+        :return:  (bytes, offset) = the butes and the offset of the bytes string
+        """
+        payload_bytes = open(local_path, "rb").read()
+        byte_count = len(payload_bytes)
+        for i in range(0, byte_count, buffer_size):
+            yield payload_bytes[i:i + buffer_size], i
+
     def _encode_string(self, string):
         return string.encode('utf-16-le') if string else None
 
