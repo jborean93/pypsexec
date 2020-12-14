@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 - TBD
+## 0.2.0 - 2020-12-14
 
 * Breaking change where processes are run as the native architecture bitness, e.g. 64-bit on 64-bit OS' and 32-bit on 32-bit OS'
     * This changes the old behaviour of always running as a 32-bit process.
