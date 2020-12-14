@@ -31,6 +31,7 @@ setup(
     url='https://github.com/jborean93/pypsexec',
     description='Run commands on a remote Windows host using SMB/RPC',
     long_description=long_description,
+    long_description_content_type='text/markdown',
     keywords='windows psexec paexec remote python',
     license='MIT',
     classifiers=[
