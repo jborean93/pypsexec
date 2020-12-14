@@ -1,22 +1,24 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright: (c) 2019, Jordan Borean (@jborean93) <jborean93@gmail.com>
+# Copyright: (c) 2019 Jordan Borean (@jborean93) <jborean93@gmail.com>
 # MIT License (see LICENSE or https://opensource.org/licenses/MIT)
+
+import os
 
 from setuptools import setup
 
-# PyPi supports only reStructuredText, so pandoc should be installed
-# before uploading package
-try:
-    import pypandoc
-    long_description = pypandoc.convert_file('README.md', 'rst')
-except ImportError:
-    long_description = ''
+
+def abs_path(rel_path):
+    return os.path.join(os.path.dirname(__file__), rel_path)
+
+
+with open(abs_path('README.md'), mode='rb') as fd:
+    long_description = fd.read().decode('utf-8')
 
 
 setup(
     name='pypsexec',
-    version='1.0.0',
+    version='0.2.0',
     packages=['pypsexec'],
     install_requires=[
         'smbprotocol',
@@ -41,5 +43,6 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
     ],
 )
