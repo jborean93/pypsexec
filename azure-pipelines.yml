@@ -55,6 +55,9 @@ stages:
 
         echo "Installing package"
         python -m pip install . -c tests/constraints.txt
+
+        echo "Show python packages"
+        python -m pip list
       displayName: Install
 
     - script: |
@@ -84,6 +87,7 @@ stages:
       timeoutInMinutes: 5
 
   - job: Test_Windows
+    timeoutInMinutes: 5  # Need to stabilise tests a bit more
     variables:
       pypsexec_alt_username: PSExecTest
       pypsexec_alt_password: Password01!
@@ -155,6 +159,9 @@ stages:
 
         echo "Installing package"
         python -m pip install . -c tests/constraints.txt
+
+        echo "Show python packages"
+        python -m pip list
       displayName: Install
 
     - script: |
