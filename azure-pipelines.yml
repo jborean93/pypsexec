@@ -55,6 +55,9 @@ stages:
 
         echo "Installing package"
         python -m pip install . -c tests/constraints.txt
+
+        echo "Show python packages"
+        python -m pip list
       displayName: Install
 
     - script: |
@@ -84,6 +87,10 @@ stages:
       timeoutInMinutes: 5
 
   - job: Test_Windows
+    timeoutInMinutes: 5  # Need to stabilise tests a bit more
+    variables:
+      pypsexec_alt_username: PSExecTest
+      pypsexec_alt_password: Password01!
     pool:
       vmImage: windows-2019
     strategy:
@@ -131,6 +138,18 @@ stages:
         versionSpec: $(python.version)
         architecture: $(python.arch)
 
+    - powershell: |
+        Write-Host 'Create local admin user'
+        $userParams = @{
+            Name = '$(pypsexec_alt_username)'
+            Password = (ConvertTo-SecureString -AsPlainText -Force -String '$(pypsexec_alt_password)')
+            AccountNeverExpires = $true
+            PasswordNeverExpires = $true
+        }
+        $null = New-LocalUser @userParams
+        Add-LocalGroupMember -Group Administrators -Member $userParams.Name
+      displayName: Set up pypsexec test account and service
+
     - script: |
         echo "Installing baseline pip packages"
         python -m pip install --upgrade pip setuptools wheel coverage -c tests/constraints.txt
@@ -140,6 +159,9 @@ stages:
 
         echo "Installing package"
         python -m pip install . -c tests/constraints.txt
+
+        echo "Show python packages"
+        python -m pip list
       displayName: Install
 
     - script: |
@@ -150,6 +172,8 @@ stages:
         pytest -v --junitxml junit/test-results.xml --cov pypsexec --cov-report xml --cov-report term-missing
       env:
         PYPSEXEC_SERVER: localhost
+        PYPSEXEC_ALT_USERNAME: $(pypsexec_alt_username)
+        PYPSEXEC_ALT_PASSWORD: $(pypsexec_alt_password)
       displayName: Test
 
     - task: PublishTestResults@2
