@@ -585,6 +585,13 @@ class SCMRApi(object):
         return_code = struct.unpack("<i", data[-4:])[0]
         self._parse_error(return_code, "REnumServicesStatusW")
 
+        def extract_unicode(buffer):
+            null_idx = buffer.index(b"\x00\x00")
+            # https://github.com/jborean93/pypsexec/issues/36
+            # When ending with ASCII chars the 2nd byte is 00.
+            null_idx = null_idx + 1 if null_idx % 1 else null_idx
+            return buffer[:null_idx].decode('utf-16-le')
+
         # now we have all the data, let's unpack it
         services = []
         services_returned = struct.unpack("<i", data[-12:-8])[0]
@@ -593,13 +600,13 @@ class SCMRApi(object):
             name_offset = struct.unpack("<i", data[offset:4 + offset])[0]
             disp_offset = struct.unpack("<i", data[4 + offset:8 + offset])[0]
             service_status = ServiceStatus()
-            service_name = data[name_offset + 4:].split(b"\x00\x00")[0]
-            display_name = data[disp_offset + 4:].split(b"\x00\x00")[0]
+            service_name = extract_unicode(data[name_offset + 4:])
+            display_name = extract_unicode(data[disp_offset + 4:])
             service_status.unpack(data[offset + 8:])
 
             service_info = {
-                "display_name": (display_name + b"\x00").decode('utf-16-le'),
-                "service_name": (service_name + b"\x00").decode('utf-16-le'),
+                "display_name": display_name,
+                "service_name": service_name,
                 "service_status": service_status
             }
             services.append(service_info)
