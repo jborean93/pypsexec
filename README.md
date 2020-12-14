@@ -1,5 +1,8 @@
 # Python PsExec Library
 
+[![Build Status](https://dev.azure.com/jborean93/jborean93/_apis/build/status/jborean93.pypsexec?branchName=master)](https://dev.azure.com/jborean93/jborean93/_build/latest?definitionId=7&branchName=master)
+[![codecov](https://codecov.io/gh/jborean93/pypsexec/branch/master/graph/badge.svg?token=Hi2Nk4RfMF)](https://codecov.io/gh/jborean93/pypsexec)
+[![PyPI version](https://badge.fury.io/py/pypsexec.svg)](https://badge.fury.io/py/pypsexec)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/jborean93/pypsexec/blob/master/LICENSE)
 
 This library can run commands on a remote Windows host through Python. This
