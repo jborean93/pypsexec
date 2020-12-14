@@ -136,7 +136,7 @@ class TestClientFunctional(object):
         username = os.environ.get('PYPSEXEC_USERNAME', None)
         password = os.environ.get('PYPSEXEC_PASSWORD', None)
 
-        if server and username and password:
+        if server:
             client = Client(server, username=username, password=password)
             client.connect()
             try:

@@ -84,9 +84,6 @@ stages:
       timeoutInMinutes: 5
 
   - job: Test_Windows
-    variables:
-      pypsexec_username: PSExecTest
-      pypsexec_password: Password01!
     pool:
       vmImage: windows-2019
     strategy:
@@ -134,18 +131,6 @@ stages:
         versionSpec: $(python.version)
         architecture: $(python.arch)
 
-    - powershell: |
-        Write-Host 'Create local admin user'
-        $userParams = @{
-            Name = '$(pypsexec_username)'
-            Password = (ConvertTo-SecureString -AsPlainText -Force -String '$(pypsexec_password)')
-            AccountNeverExpires = $true
-            PasswordNeverExpires = $true
-        }
-        $null = New-LocalUser @userParams
-        Add-LocalGroupMember -Group Administrators -Member $userParams.Name
-      displayName: Set up pypsexec test account
-
     - script: |
         echo "Installing baseline pip packages"
         python -m pip install --upgrade pip setuptools wheel coverage -c tests/constraints.txt
@@ -165,8 +150,6 @@ stages:
         pytest -v --junitxml junit/test-results.xml --cov pypsexec --cov-report xml --cov-report term-missing
       env:
         PYPSEXEC_SERVER: localhost
-        PYPSEXEC_USERNAME: $(pypsexec_username)
-        PYPSEXEC_PASSWORD: $(pypsexec_password)
       displayName: Test
 
     - task: PublishTestResults@2

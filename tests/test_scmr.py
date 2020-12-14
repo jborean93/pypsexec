@@ -203,7 +203,7 @@ class TestServiceFunctional(object):
         username = os.environ.get('PYPSEXEC_USERNAME', None)
         password = os.environ.get('PYPSEXEC_PASSWORD', None)
 
-        if server and username and password:
+        if server:
             connection = Connection(uuid.uuid4(), server, 445)
             session = Session(connection, username, password)
             tree = TreeConnect(session, r"\\%s\ADMIN$" % server)
