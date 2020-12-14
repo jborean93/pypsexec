@@ -257,15 +257,14 @@ class TestClientFunctional(object):
         time.sleep(1)
 
     def test_run_specific_user(self, client):
-        username = os.environ['PYPSEXEC_USERNAME']
-        password = os.environ['PYPSEXEC_PASSWORD']
+        username = os.environ['PYPSEXEC_ALT_USERNAME']
+        password = os.environ['PYPSEXEC_ALT_PASSWORD']
         actual = client.run_executable("whoami.exe",
                                        arguments="/groups",
                                        username=username,
                                        password=password)
-        # Can't test this in appveyor as admin approval mode is turned off
-        # so the user is always an administrator
-        # assert b"Medium Mandatory Level" in actual[0]
+        # TODO: This requires admin approval mode to be on (UAC), be more flexible in the future.
+        assert b"Medium Mandatory Level" in actual[0]
         assert actual[1] == b""
         assert actual[2] == 0
         time.sleep(1)
@@ -281,8 +280,8 @@ class TestClientFunctional(object):
                                  "[Err=0x52E, 1326]\r\n"
 
     def test_proc_run_elevated(self, client):
-        username = os.environ['PYPSEXEC_USERNAME']
-        password = os.environ['PYPSEXEC_PASSWORD']
+        username = os.environ['PYPSEXEC_ALT_USERNAME']
+        password = os.environ['PYPSEXEC_ALT_PASSWORD']
         actual = client.run_executable("whoami.exe",
                                        arguments="/groups",
                                        username=username,
@@ -294,16 +293,15 @@ class TestClientFunctional(object):
         time.sleep(1)
 
     def test_proc_run_limited(self, client):
-        username = os.environ['PYPSEXEC_USERNAME']
-        password = os.environ['PYPSEXEC_PASSWORD']
+        username = os.environ['PYPSEXEC_ALT_USERNAME']
+        password = os.environ['PYPSEXEC_ALT_PASSWORD']
         actual = client.run_executable("whoami.exe",
                                        arguments="/groups",
                                        username=username,
                                        password=password,
                                        run_limited=True)
-        # Can't test this in appveyor as admin approval mode is turned off
-        # so the user is always an administrator
-        # assert b"Medium Mandatory Level" in actual[0]
+        # TODO: This requires admin approval mode to be on (UAC), be more flexible in the future.
+        assert b"Medium Mandatory Level" in actual[0]
         assert actual[1] == b""
         assert actual[2] == 0
         time.sleep(1)
@@ -391,8 +389,6 @@ class TestClientFunctional(object):
 
     def test_cleanup_with_older_processes(self, client):
         # create a new service with different pid and service name
-        username = os.environ['PYPSEXEC_USERNAME']
-        password = os.environ['PYPSEXEC_PASSWORD']
         new_client = self._get_new_generic_client(client)
         new_client.connect()
         new_client.create_service()
@@ -430,8 +426,8 @@ class TestClientFunctional(object):
 
     def _get_paexec_files_and_services(self, client):
         server = os.environ['PYPSEXEC_SERVER']
-        username = os.environ['PYPSEXEC_USERNAME']
-        password = os.environ['PYPSEXEC_PASSWORD']
+        username = os.environ.get('PYPSEXEC_USERNAME', None)
+        password = os.environ.get('PYPSEXEC_PASSWORD', None)
         paexec_services = []
 
         # need to close and reopen the connection to ensure deletes are
@@ -478,8 +474,8 @@ class TestClientFunctional(object):
         return client, paexec_services, paexec_files
 
     def _get_new_generic_client(self, client):
-        username = os.environ['PYPSEXEC_USERNAME']
-        password = os.environ['PYPSEXEC_PASSWORD']
+        username = os.environ.get('PYPSEXEC_USERNAME', None)
+        password = os.environ.get('PYPSEXEC_PASSWORD', None)
         new_client = Client(client.server, username, password)
         new_client.pid = 1234
         new_client.current_host = "other-host"
