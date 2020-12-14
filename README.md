@@ -1,9 +1,6 @@
 # Python PsExec Library
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/jborean93/pypsexec/blob/master/LICENSE)
-[![Travis Build](https://travis-ci.org/jborean93/pypsexec.svg)](https://travis-ci.org/jborean93/pypsexec)
-[![AppVeyor Build](https://ci.appveyor.com/api/projects/status/github/jborean93/pypsexec?svg=true)](https://ci.appveyor.com/project/jborean93/pypsexec)
-[![Coverage](https://coveralls.io/repos/jborean93/pypsexec/badge.svg)](https://coveralls.io/r/jborean93/pypsexec)
 
 This library can run commands on a remote Windows host through Python. This
 means that it can be run on any host with Python and does not require any
@@ -375,9 +372,9 @@ pip install tox
 From there to run the basic tests run;
 
 ```
-py.test -v --pep8 --cov pypsexec --cov-report term-missing
+py.test -v --cov pypsexec --cov-report term-missing
 
-# or with tox 2.7, 2.7, 3.4, 3.5, and 3.6
+# or with tox
 tox
 ```
 
