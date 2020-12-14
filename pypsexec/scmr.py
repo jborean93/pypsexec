@@ -586,10 +586,10 @@ class SCMRApi(object):
         self._parse_error(return_code, "REnumServicesStatusW")
 
         def extract_unicode(buffer):
-            null_idx = buffer.index(b"\x00\x00")
             # https://github.com/jborean93/pypsexec/issues/36
             # When ending with ASCII chars the 2nd byte is 00.
-            null_idx = null_idx + 1 if null_idx % 2 else null_idx
+            null_idx = buffer.index(b"\x00\x00")
+            null_idx += null_idx % 2
             return buffer[:null_idx].decode('utf-16-le')
 
         # now we have all the data, let's unpack it
