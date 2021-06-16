@@ -19,7 +19,7 @@ with open(abs_path('README.md'), mode='rb') as fd:
 setup(
     name='pypsexec',
     version='0.2.0',
-    packages=['pypsexec'],
+    packages=['pypsexec', 'pypsexec.__pyinstaller'],
     install_requires=[
         'smbprotocol',
         'six',
