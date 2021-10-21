@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 - TBD
+## 0.3.0 - 2021-10-22
 
 * Dropped Python 2.7 and 3.5, new minimum is 3.6
 * Updated the `PAExec` executable to `1.29`
