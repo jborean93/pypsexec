@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 - TBD
+
+* Dropped Python 2.7 and 3.5, new minimum is 3.6
+* Updated the `PAExec` executable to `1.29`
+
+
 ## 0.2.0 - 2020-12-14
 
 * Breaking change where processes are run as the native architecture bitness, e.g. 64-bit on 64-bit OS' and 32-bit on 32-bit OS'

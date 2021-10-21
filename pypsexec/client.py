@@ -5,9 +5,10 @@
 import logging
 import os
 import socket
-import sys
 import time
 import uuid
+
+from queue import Empty
 
 from smbprotocol.connection import (
     Connection,
@@ -66,10 +67,6 @@ from pypsexec.scmr import (
     ServiceType,
 )
 
-if sys.version[0] == '2':
-    from Queue import Empty
-else:
-    from queue import Empty
 
 log = logging.getLogger(__name__)
 

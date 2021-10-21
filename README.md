@@ -1,6 +1,6 @@
 # Python PsExec Library
 
-[![Build Status](https://dev.azure.com/jborean93/jborean93/_apis/build/status/jborean93.pypsexec?branchName=master)](https://dev.azure.com/jborean93/jborean93/_build/latest?definitionId=7&branchName=master)
+[![Test workflow](https://github.com/jborean93/pypsexec/actions/workflows/ci.yml/badge.svg)](https://github.com/jborean93/pypsexec/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/jborean93/pypsexec/branch/master/graph/badge.svg?token=Hi2Nk4RfMF)](https://codecov.io/gh/jborean93/pypsexec)
 [![PyPI version](https://badge.fury.io/py/pypsexec.svg)](https://badge.fury.io/py/pypsexec)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/jborean93/pypsexec/blob/master/LICENSE)
@@ -78,23 +78,24 @@ decoded by someone who knows the protocol.
 
 ## Requirements
 
-* Python 2.7, 2.7, 3.4-3.6
+* Python 3.6+
 * [smbprotocol](https://github.com/jborean93/smbprotocol)
 
 To install pypsexec, simply run
 
-`pip install pypsexec`
+```bash
+pip install pypsexec
+```
 
 This will download the required packages that are required and get your
 Python environment ready to do.
 
 Out of the box, pypsexec supports authenticating to a Windows host with NTLM
 authentication but users in a domain environment can take advantage of Kerberos
-authentication as well for added security. Currently the Windows implementation
-of the smbprotocol does not support Kerberos auth but for other platforms you
-can add support by installing the kerberos components of `smbprotocol`;
+authentication as well for added security. The Kerberos libraries are an
+optional install which can be installed with;
 
-```
+```bash
 # for Debian/Ubuntu/etc:
 sudo apt-get install gcc python-dev libkrb5-dev
 pip install smbprotocol[kerberos]
@@ -103,21 +104,6 @@ pip install smbprotocol[kerberos]
 sudo yum install gcc python-devel krb5-devel krb5-workstation python-devel
 pip install smbprotocol[kerberos]
 ```
-
-From there to check that everything was installed correctly and the correct
-GSSAPI extensions are available on that host, run
-
-```
-try:
-    from gssapi.raw import inquire_sec_context_by_oid
-    print("python-gssapi extension is available")
-except ImportError as exc:
-    print("python-gssapi extension is not available: %s" % str(exc))
-```
-
-If it isn't available, then either a newer version of the system's gssapi
-implementation needs to be setup and python-gssapi compiled against that newer
-version.
 
 
 ## Remote Host Requirements
@@ -140,7 +126,7 @@ By default, Windows blocks the SMB port 445 and it needs to be opened up before
 pypsexec can connect to the host. To do this run either one of the following
 commands;
 
-```
+```powershell
 # PowerShell (Windows 8 and Server 2012 or Newer)
 Set-NetFirewallRule -Name FPS-SMB-In-TCP -Enabled True
 
@@ -175,7 +161,7 @@ and to get it working with pypsexec you can either;
 To set `LocalAccountTokenFilterPolicy` to allow a full token on a remote logon,
 run the following PowerShell commands;
 
-```
+```powershell
 $reg_path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
 $reg_prop_name = "LocalAccountTokenFilterPolicy"
 
@@ -191,7 +177,7 @@ New-ItemProperty -Path $reg_path -Name $reg_prop_name -Value 1 -PropertyType DWo
 To get the name of the builtin Administrator (SID `S-1-5-21-*-500`), you can
 run the following PowerShell commands;
 
-```
+```powershell
 Add-Type -AssemblyName System.DirectoryServices.AccountManagement
 $principal_context = New-Object -TypeName System.DirectoryServices.AccountManagement.PrincipalContext([System.DirectoryServices.AccountManagement.ContextType]::Machine)
 $user_principal = New-Object -TypeName System.DirectoryServices.AccountManagement.UserPrincipal($principal_context)
@@ -205,7 +191,7 @@ Once again this should be avoided as there are other options available and this
 will reduce the security of your Windows host, but to do so you can run the
 following PowerShell commands;
 
-```
+```powershell
 $reg_path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
 $reg_prop_name = "EnableLUA"
 
@@ -226,7 +212,7 @@ before the policies are enacted.
 
 Here is an example of how to run a command with this library
 
-```
+```python
 from pypsexec.client import Client
 
 # creates an encrypted connection to the host with the username and password
@@ -278,7 +264,7 @@ payload in `C:\Windows` or the service still installed. As these are uniquely
 named they can build up over time. They can be manually removed but you can
 also use pypsexec to cleanup them all up at once. To do this run
 
-```
+```python
 from pypsexec.client import Client
 
 c = Client("server", username="username", password="password")
@@ -341,7 +327,7 @@ in the `pypsexec` directory.
 A way to enable the logging in your scripts through code is to add the
 following to the top of the script being used;
 
-```
+```python
 import logging
 
 logger = logging.getLogger("pypsexec")
@@ -365,7 +351,7 @@ is sent out from the client but this level can get really verbose.
 To this module, you need to install some pre-requisites first. This can be done
 by running;
 
-```
+```bash
 pip install -r requirements-test.txt
 
 # you can also run tox by installing tox
@@ -374,7 +360,7 @@ pip install tox
 
 From there to run the basic tests run;
 
-```
+```bash
 py.test -v --cov pypsexec --cov-report term-missing
 
 # or with tox

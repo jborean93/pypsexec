@@ -28,16 +28,10 @@ from pypsexec.paexec import (
 
 
 def test_paexec_out_stream():
-    count = 0
     actual = b""
     for (data, offset) in paexec_out_stream(4096):
-        count += 1
         actual += data
-        if count == 49:
-            assert len(actual) == 199304
-        else:
-            assert len(actual) == count * 4096
-    assert count == 49
+
     assert actual == pkgutil.get_data('pypsexec', 'paexec.exe')
 
 

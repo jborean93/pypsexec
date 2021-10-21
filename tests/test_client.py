@@ -275,7 +275,7 @@ class TestClientFunctional(object):
                                   username="fakeuser",
                                   password="fakepassword")
         assert str(exc.value) == "Received exception from remote PAExec " \
-                                 "service: Error logging in as fakeuser The " \
+                                 "service: Error logging in as fakeuser. The " \
                                  "user name or password is incorrect. " \
                                  "[Err=0x52E, 1326]\r\n"
 

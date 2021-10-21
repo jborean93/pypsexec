@@ -15,10 +15,6 @@ from collections import (
     OrderedDict,
 )
 
-from six import (
-    with_metaclass,
-)
-
 from smbprotocol.connection import (
     NtStatus,
 )
@@ -168,7 +164,7 @@ class InputPipe(object):
         self.pipe.close(get_attributes=False)
 
 
-class OutputPipe(with_metaclass(ABCMeta, threading.Thread)):
+class OutputPipe(threading.Thread, metaclass=ABCMeta):
 
     def __init__(self, tree, name):
         """

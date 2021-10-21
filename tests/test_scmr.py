@@ -2,15 +2,10 @@
 # Copyright: (c) 2019, Jordan Borean (@jborean93) <jborean93@gmail.com>
 # MIT License (see LICENSE or https://opensource.org/licenses/MIT)
 
-import binascii
 import os
 import pkgutil
 import pytest
 import uuid
-
-from six import (
-    string_types,
-)
 
 from smbprotocol.connection import (
     Connection,
@@ -360,8 +355,8 @@ class TestServiceFunctional(object):
                                                  SERVICE_STATE_ALL)
 
             assert len(actual) > 0
-            assert isinstance(actual[0]['display_name'], string_types)
-            assert isinstance(actual[0]['service_name'], string_types)
+            assert isinstance(actual[0]['display_name'], str)
+            assert isinstance(actual[0]['service_name'], str)
             assert isinstance(actual[0]['service_status'], ServiceStatus)
         finally:
             if scmr_handle:
@@ -385,8 +380,8 @@ class TestServiceFunctional(object):
                                                  EnumServiceState.
                                                  SERVICE_STATE_ALL)
             assert len(actual) > 0
-            assert isinstance(actual[0]['display_name'], string_types)
-            assert isinstance(actual[0]['service_name'], string_types)
+            assert isinstance(actual[0]['display_name'], str)
+            assert isinstance(actual[0]['service_name'], str)
             assert isinstance(actual[0]['service_status'], ServiceStatus)
         finally:
             if scmr_handle:
