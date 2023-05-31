@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0 - TBD
+
+* Dropped Python 3.6, new minimum is 3.7
+
 ## 0.3.0 - 2021-10-22
 
 * Dropped Python 2.7 and 3.5, new minimum is 3.6

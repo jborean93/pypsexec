@@ -78,7 +78,7 @@ decoded by someone who knows the protocol.
 
 ## Requirements
 
-* Python 3.6+
+* Python 3.7+
 * [smbprotocol](https://github.com/jborean93/smbprotocol)
 
 To install pypsexec, simply run
