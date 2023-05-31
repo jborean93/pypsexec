@@ -18,13 +18,13 @@ with open(abs_path('README.md'), mode='rb') as fd:
 
 setup(
     name='pypsexec',
-    version='0.3.0',
+    version='0.4.0',
     packages=['pypsexec'],
     install_requires=[
         'smbprotocol',
     ],
     include_package_data=True,
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     author='Jordan Borean',
     author_email='jborean93@gmail.com',
     url='https://github.com/jborean93/pypsexec',
@@ -37,10 +37,10 @@ setup(
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
     ],
 )
