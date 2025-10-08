@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2019, Jordan Borean (@jborean93) <jborean93@gmail.com>
 # MIT License (see LICENSE or https://opensource.org/licenses/MIT)
-
+import os.path
 import pkgutil
 import pytest
 
@@ -32,7 +32,7 @@ def test_paexec_out_stream():
     for data, offset in paexec_out_stream(None, 4096):
         actual += data
 
-    assert actual == pkgutil.get_data("pypsexec", "paexec.exe")
+    assert actual == pkgutil.get_data("pypsexec", os.path.join("resources", "paexec.exe"))
 
 
 def test_get_unique_id():
