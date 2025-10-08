@@ -9,6 +9,7 @@ import uuid
 from collections import (
     OrderedDict,
 )
+from typing import Optional
 
 from smbprotocol.connection import (
     NtStatus,
@@ -16,6 +17,10 @@ from smbprotocol.connection import (
 
 from smbprotocol.exceptions import (
     SMBResponseException,
+)
+
+from smbprotocol.session import (
+    Session,
 )
 
 from smbprotocol.ioctl import (
@@ -45,12 +50,12 @@ from smbprotocol.tree import (
     TreeConnect,
 )
 
-from pypsexec.exceptions import (
+from .exceptions import (
     PypsexecException,
     SCMRException,
 )
 
-from pypsexec.rpc import (
+from .rpc import (
     BindAckPDU,
     BindPDU,
     ContextElement,
@@ -61,15 +66,18 @@ from pypsexec.rpc import (
     RequestPDU,
     ResponsePDU,
     SyntaxIdElement,
+    PDU,
 )
 
 log = logging.getLogger(__name__)
 
 
-class ControlCode(object):
+# pylint: disable=too-few-public-methods
+class ControlCode:
     """
     https://msdn.microsoft.com/en-us/library/cc245921.aspx
     """
+
     SERVICE_CONTROL_CONTINUE = 0x00000003
     SERVICE_CONTROL_INTERROGATE = 0x00000004
     SERVICE_CONTROL_NETBINDADD = 0x00000007
@@ -81,10 +89,12 @@ class ControlCode(object):
     SERVICE_CONTROL_STOP = 0x00000001
 
 
-class DesiredAccess(object):
+# pylint: disable=too-few-public-methods
+class DesiredAccess:
     """
     https://msdn.microsoft.com/en-us/library/cc245853.aspx
     """
+
     DELETE = 0x00010000
     READ_CONTROL = 0x00020000
     WRITE_DAC = 0x00040000
@@ -108,12 +118,14 @@ class DesiredAccess(object):
     SC_MANAGER_MODIFY_BOOT_CONFIG = 0x00000020
 
 
-class ServiceType(object):
+# pylint: disable=too-few-public-methods
+class ServiceType:
     """
     https://msdn.microsoft.com/en-us/library/cc245925.aspx
     dwServiceType
     flags
     """
+
     SERVICE_KERNEL_DRIVER = 0x00000001
     SERVICE_FILE_SYSTEM_DRIVER = 0x00000002
     SERVICE_WIN32_OWN_PROCESS = 0x00000010
@@ -121,12 +133,14 @@ class ServiceType(object):
     SERVICE_INTERACTIVE_PROCESS = 0x00000100
 
 
-class StartType(object):
+# pylint: disable=too-few-public-methods
+class StartType:
     """
     https://msdn.microsoft.com/en-us/library/cc245925.aspx
     dwStartType
     enum
     """
+
     SERVICE_BOOT_START = 0x00000000
     SERVICE_SYSTEM_START = 0x00000001
     SERVICE_AUTO_START = 0x00000002
@@ -134,24 +148,28 @@ class StartType(object):
     SERVICE_DISABLED = 0x00000004
 
 
-class ErrorControl(object):
+# pylint: disable=too-few-public-methods
+class ErrorControl:
     """
     https://msdn.microsoft.com/en-us/library/cc245925.aspx
     dwErrorControl
     enum
     """
+
     SERVICE_ERROR_IGNORE = 0x00000000
     SERVICE_ERROR_NORMAL = 0x00000001
     SERVICE_ERROR_SEVERE = 0x00000002
     SERVICE_ERROR_CRITICAL = 0x00000003
 
 
-class CurrentState(object):
+# pylint: disable=too-few-public-methods
+class CurrentState:
     """
     https://msdn.microsoft.com/en-us/library/cc245911.aspx
     dwCurrentState
     enum
     """
+
     SERVICE_CONTINUE_PENDING = 0x00000005
     SERVICE_PAUSE_PENDING = 0x00000006
     SERVICE_PAUSED = 0x00000007
@@ -161,12 +179,14 @@ class CurrentState(object):
     SERVICE_STOPPED = 0x00000001
 
 
-class ControlsAccepted(object):
+# pylint: disable=too-few-public-methods
+class ControlsAccepted:
     """
     https://msdn.microsoft.com/en-us/library/cc245911.aspx
     dwControlsAccepted
     flags
     """
+
     SERVICE_ACCEPT_PARAMCHANGE = 0x00000008
     SERVICE_ACCEPT_PAUSE_CONTINUE = 0x00000002
     SERVICE_ACCEPT_SHUTDOWN = 0x00000004
@@ -179,19 +199,22 @@ class ControlsAccepted(object):
     SERVICE_ACCEPT_TRIGGEREVENT = 0x00000400
 
 
-class EnumServiceState(object):
+# pylint: disable=too-few-public-methods
+class EnumServiceState:
     """
     https://msdn.microsoft.com/en-us/library/cc245933.aspx
     dwServiceState
     Specifies the service records to enumerate
     """
+
     SERVICE_ACTIVE = 0x00000001
     SERVICE_INACTIVE = 0x00000002
     SERVICE_STATE_ALL = 0x00000003
 
 
-class ScmrReturnValues(object):
-    # The return values a RPC request can return
+# pylint: disable=too-few-public-methods
+class SCMRReturnValues:
+    # The return values an RPC request can return
     ERROR_SUCCESS = 0
     ERROR_SUCCESS_NOTIFY_CHANGED = 0xFE75FFFF
     ERROR_SUCCESS_LAST_NOTIFY_CHANGED = 0xFD75FFFF
@@ -234,107 +257,107 @@ class ServiceStatus(Structure):
     """
 
     def __init__(self):
-        self.fields = OrderedDict([
-            ('service_type', FlagField(
-                size=4,
-                flag_type=ServiceType,
-                flag_strict=False
-            )),
-            ('current_state', EnumField(
-                size=4,
-                enum_type=CurrentState
-            )),
-            ('controls_accepted', FlagField(
-                size=4,
-                flag_type=ControlsAccepted,
-                flag_strict=False
-            )),
-            ('win32_exit_code', IntField(size=4)),
-            ('service_specified_exit_code', IntField(size=4)),
-            ('check_point', IntField(size=4)),
-            ('wait_hint', IntField(size=4))
-        ])
-        super(ServiceStatus, self).__init__()
+        self.fields = OrderedDict(
+            [
+                (
+                    "service_type",
+                    FlagField(size=4, flag_type=ServiceType, flag_strict=False),
+                ),
+                ("current_state", EnumField(size=4, enum_type=CurrentState)),
+                (
+                    "controls_accepted",
+                    FlagField(size=4, flag_type=ControlsAccepted, flag_strict=False),
+                ),
+                ("win32_exit_code", IntField(size=4)),
+                ("service_specified_exit_code", IntField(size=4)),
+                ("check_point", IntField(size=4)),
+                ("wait_hint", IntField(size=4)),
+            ]
+        )
+        super().__init__()
 
 
-class Service(object):
+class Service:
 
-    def __init__(self, name, smb_session):
+    def __init__(self, name: str, smb_session: Session):
         """
         Higher-level interface over SCMR to manage Windows services. This is
-        customised for the PAExec service to really just be used in that
+        customized for the PAExec service to really just be used in that
         scenario.
 
-        :param name: The name of the service
+        :param name: Name of the service.
         :param smb_session: A connected SMB Session that can be used to connect
             to the IPC$ tree.
         """
-        self.name = name
-        self.smb_session = smb_session
+        self.name: str = name
+        self.smb_session: Session = smb_session
 
         self._handle = None
-        self._scmr = None
-        self._scmr_handle = None
+        self.scmr = None
+        self.scmr_handle = None
 
-    def open(self):
-        if self._scmr:
-            log.debug("Handle for SCMR on %s is already open"
-                      % self.smb_session.connection.server_name)
+    def open(self) -> None:
+        if self.scmr:
+            log.debug(
+                "Handle for SCMR on %s is already open",
+                self.smb_session.connection.server_name,
+            )
             return
 
         # connect to the SCMR Endpoint
-        log.info("Opening handle for SCMR on %s"
-                 % self.smb_session.connection.server_name)
-        self._scmr = SCMRApi(self.smb_session)
-        self._scmr.open()
-        self._scmr_handle = self._scmr.open_sc_manager_w(
+        log.info(
+            "Opening handle for SCMR on %s", self.smb_session.connection.server_name
+        )
+        self.scmr = SCMRApi(self.smb_session)
+        self.scmr.open()
+        self.scmr_handle = self.scmr.open_sc_manager_w(
             self.smb_session.connection.server_name,
             None,
-            DesiredAccess.SC_MANAGER_CONNECT |
-            DesiredAccess.SC_MANAGER_CREATE_SERVICE |
-            DesiredAccess.SC_MANAGER_ENUMERATE_SERVICE
+            DesiredAccess.SC_MANAGER_CONNECT
+            | DesiredAccess.SC_MANAGER_CREATE_SERVICE
+            | DesiredAccess.SC_MANAGER_ENUMERATE_SERVICE,
         )
 
     def close(self):
         if self._handle:
-            log.info("Closing Service handle for service %s" % self.name)
-            self._scmr.close_service_handle_w(self._handle)
+            log.info("Closing Service handle for service %s", self.name)
+            self.scmr.close_service_handle_w(self._handle)
             self._handle = None
 
-        if self._scmr_handle:
+        if self.scmr_handle:
             log.info("Closing SCMR handle")
-            self._scmr.close_service_handle_w(self._scmr_handle)
-            self._scmr_handle = None
+            self.scmr.close_service_handle_w(self.scmr_handle)
+            self.scmr_handle = None
 
-        if self._scmr:
+        if self.scmr:
             log.info("Closing bindings for SCMR")
-            self._scmr.close()
-            self._scmr = None
+            self.scmr.close()
+            self.scmr = None
 
     def start(self):
         self._open_service()
         if self._handle is None:
-            raise PypsexecException("Cannot start service %s as it does not "
-                                    "exist" % self.name)
+            raise PypsexecException(
+                f"Cannot start service {self.name} as it does not exist"
+            )
 
         try:
-            self._scmr.start_service_w(self._handle)
+            self.scmr.start_service_w(self._handle)
         except SCMRException as exc:
-            if exc.return_code != \
-                    ScmrReturnValues.ERROR_SERVICE_ALREADY_RUNNING:
+            if exc.return_code != SCMRReturnValues.ERROR_SERVICE_ALREADY_RUNNING:
                 raise exc
 
     def stop(self):
         self._open_service()
         if self._handle is None:
-            raise PypsexecException("Cannot stop service %s as it does not "
-                                    "exist" % self.name)
+            raise PypsexecException(
+                f"Cannot stop service {self.name} as it does not exist"
+            )
 
         try:
-            self._scmr.control_service(self._handle,
-                                       ControlCode.SERVICE_CONTROL_STOP)
+            self.scmr.control_service(self._handle, ControlCode.SERVICE_CONTROL_STOP)
         except SCMRException as exc:
-            if exc.return_code != ScmrReturnValues.ERROR_SERVICE_NOT_ACTIVE:
+            if exc.return_code != SCMRReturnValues.ERROR_SERVICE_NOT_ACTIVE:
                 raise exc
 
     def create(self, path):
@@ -342,12 +365,14 @@ class Service(object):
         if self._handle:
             return
 
-        self._handle = self._scmr.create_service_w(
-            self._scmr_handle,
+        self._handle = self.scmr.create_service_w(
+            self.scmr_handle,
             self.name,
             self.name,
-            DesiredAccess.SERVICE_QUERY_STATUS | DesiredAccess.SERVICE_START |
-            DesiredAccess.SERVICE_STOP | DesiredAccess.DELETE,
+            DesiredAccess.SERVICE_QUERY_STATUS
+            | DesiredAccess.SERVICE_START
+            | DesiredAccess.SERVICE_STOP
+            | DesiredAccess.DELETE,
             ServiceType.SERVICE_WIN32_OWN_PROCESS,
             StartType.SERVICE_DEMAND_START,
             ErrorControl.SERVICE_ERROR_NORMAL,
@@ -356,7 +381,7 @@ class Service(object):
             0,
             None,
             None,
-            None
+            None,
         )[1]
 
     def delete(self):
@@ -365,105 +390,108 @@ class Service(object):
             return
 
         self.stop()
-        self._scmr.delete_service(self._handle)
+        self.scmr.delete_service(self._handle)
 
     def _open_service(self):
         if self._handle:
             return self._handle
 
         # connect to the desired service in question
-        desired_access = DesiredAccess.SERVICE_QUERY_STATUS | \
-            DesiredAccess.SERVICE_START | \
-            DesiredAccess.SERVICE_STOP | \
-            DesiredAccess.DELETE
+        desired_access = (
+            DesiredAccess.SERVICE_QUERY_STATUS
+            | DesiredAccess.SERVICE_START
+            | DesiredAccess.SERVICE_STOP
+            | DesiredAccess.DELETE
+        )
         try:
-            log.info("Opening handle for Service %s" % self.name)
-            self._handle = self._scmr.open_service_w(self._scmr_handle,
-                                                     self.name,
-                                                     desired_access)
+            log.info("Opening handle for Service %s", self.name)
+            self._handle = self.scmr.open_service_w(
+                self.scmr_handle, self.name, desired_access
+            )
         except SCMRException as exc:
-            if exc.return_code != \
-                    ScmrReturnValues.ERROR_SERVICE_DOES_NOT_EXIST:
+            if exc.return_code != SCMRReturnValues.ERROR_SERVICE_DOES_NOT_EXIST:
                 raise exc
-            else:
-                log.debug("Could not open handle for service %s as it did "
-                          "not exist" % self.name)
+
+            log.debug(
+                "Could not open handle for service %s as it did not exist", self.name
+            )
+
+        return self._handle
 
 
-class SCMRApi(object):
+class SCMRApi:
 
     def __init__(self, smb_session):
         # connect to the IPC tree and open a handle at svcctl
-        self.tree = TreeConnect(smb_session, r"\\%s\IPC$"
-                                % smb_session.connection.server_name)
+        self.tree = TreeConnect(
+            smb_session, rf"\\{smb_session.connection.server_name}\IPC$"
+        )
         self.handle = Open(self.tree, "svcctl")
         self.call_id = 0
 
     def open(self):
-        log.debug("Connecting to SMB Tree %s for SCMR" % self.tree.share_name)
+        log.debug("Connecting to SMB Tree %s for SCMR", self.tree.share_name)
         self.tree.connect()
 
         log.debug("Opening handle to svcctl pipe")
-        self.handle.create(ImpersonationLevel.Impersonation,
-                           FilePipePrinterAccessMask.GENERIC_READ |
-                           FilePipePrinterAccessMask.GENERIC_WRITE,
-                           0,
-                           ShareAccess.FILE_SHARE_READ |
-                           ShareAccess.FILE_SHARE_WRITE |
-                           ShareAccess.FILE_SHARE_DELETE,
-                           CreateDisposition.FILE_OPEN,
-                           CreateOptions.FILE_NON_DIRECTORY_FILE)
+        self.handle.create(
+            ImpersonationLevel.Impersonation,
+            FilePipePrinterAccessMask.GENERIC_READ
+            | FilePipePrinterAccessMask.GENERIC_WRITE,
+            0,
+            ShareAccess.FILE_SHARE_READ
+            | ShareAccess.FILE_SHARE_WRITE
+            | ShareAccess.FILE_SHARE_DELETE,
+            CreateDisposition.FILE_OPEN,
+            CreateOptions.FILE_NON_DIRECTORY_FILE,
+        )
 
         # we need to bind svcctl to SCManagerW over DCE/RPC
         bind = BindPDU()
-        bind['pfx_flags'].set_flag(PFlags.PFC_FIRST_FRAG)
-        bind['pfx_flags'].set_flag(PFlags.PFC_LAST_FRAG)
-        bind['packed_drep'] = DataRepresentationFormat()
-        bind['call_id'] = self.call_id
+        bind["pfx_flags"].set_flag(PFlags.PFC_FIRST_FRAG)
+        bind["pfx_flags"].set_flag(PFlags.PFC_LAST_FRAG)
+        bind["packed_drep"] = DataRepresentationFormat()
+        bind["call_id"] = self.call_id
         self.call_id += 1
 
         context_ndr = ContextElement()
-        context_ndr['context_id'] = 0
-        context_ndr['abstract_syntax'] = SyntaxIdElement()
-        context_ndr['abstract_syntax']['uuid'] = \
-            uuid.UUID("367ABB81-9844-35F1-AD32-98F038001003")
-        context_ndr['abstract_syntax']['version'] = 2
+        context_ndr["context_id"] = 0
+        context_ndr["abstract_syntax"] = SyntaxIdElement()
+        context_ndr["abstract_syntax"]["uuid"] = uuid.UUID(
+            "367ABB81-9844-35F1-AD32-98F038001003"
+        )
+        context_ndr["abstract_syntax"]["version"] = 2
 
         # https://msdn.microsoft.com/en-us/library/cc243843.aspx
         ndr_syntax = SyntaxIdElement()
-        ndr_syntax['uuid'] = uuid.UUID("8a885d04-1ceb-11c9-9fe8-08002b104860")
-        ndr_syntax['version'] = 2
-        context_ndr['transfer_syntaxes'] = [
-            ndr_syntax
-        ]
+        ndr_syntax["uuid"] = uuid.UUID("8a885d04-1ceb-11c9-9fe8-08002b104860")
+        ndr_syntax["version"] = 2
+        context_ndr["transfer_syntaxes"] = [ndr_syntax]
 
         context_bind = ContextElement()
-        context_bind['context_id'] = 1
-        context_bind['abstract_syntax'] = SyntaxIdElement()
-        context_bind['abstract_syntax']['uuid'] = \
-            uuid.UUID("367ABB81-9844-35F1-AD32-98F038001003")
-        context_bind['abstract_syntax']['version'] = 2
+        context_bind["context_id"] = 1
+        context_bind["abstract_syntax"] = SyntaxIdElement()
+        context_bind["abstract_syntax"]["uuid"] = uuid.UUID(
+            "367ABB81-9844-35F1-AD32-98F038001003"
+        )
+        context_bind["abstract_syntax"]["version"] = 2
 
         # https://msdn.microsoft.com/en-us/library/cc243715.aspx
         # uuid prefix = 6CB71C2C-9812-4540
-        # uuid prefix bytes = b'\x2c\x1c\xb7\x6c\x12\x98\x40\x45'
+        # uuid prefix bytes = b"\x2c\x1c\xb7\x6c\x12\x98\x40\x45"
         # BindTimeFeatureNegotiateBitmask
         # https://msdn.microsoft.com/en-us/library/cc243884.aspx
         # SecurityContextMultiplexingSupported = 0x01
         # KeepConnectionOnOrphanSupported = 0x02
         # version number is 1
         bind_syntax = SyntaxIdElement()
-        bind_syntax['uuid'] = b'\x2c\x1c\xb7\x6c\x12\x98\x40\x45' \
-                              b'\x03\x00\x00\x00\x00\x00\x00\x00'
-        bind_syntax['version'] = 1
-        context_bind['transfer_syntaxes'] = [
-            bind_syntax
-        ]
+        bind_syntax["uuid"] = (
+            b"\x2c\x1c\xb7\x6c\x12\x98\x40\x45" b"\x03\x00\x00\x00\x00\x00\x00\x00"
+        )
+        bind_syntax["version"] = 1
+        context_bind["transfer_syntaxes"] = [bind_syntax]
 
-        bind['context_elems'] = [
-            context_ndr,
-            context_bind
-        ]
+        bind["context_elems"] = [context_ndr, context_bind]
         bind_data = bind.pack()
 
         log.info("Sending bind request to svcctl")
@@ -475,8 +503,10 @@ class SCMRApi(object):
         bind_result = parse_pdu(bind_data)
         log.debug(str(bind_result))
         if not isinstance(bind_result, BindAckPDU):
-            raise PDUException("Expecting BindAckPDU for initial bind result "
-                               "but got: %s" % str(bind_result))
+            raise PDUException(
+                "Expecting BindAckPDU for initial bind result "
+                f"but got: {bind_result}"
+            )
 
     def close(self):
         log.info("Closing bind to svcctl")
@@ -532,10 +562,9 @@ class SCMRApi(object):
 
         return service_status
 
-    def enum_services_status_w(self, server_handle, service_type,
-                               service_state):
+    def enum_services_status_w(self, server_handle, service_type, service_state):
         """
-        Enumerates the services based on the criteria selected
+        Lists the services based on the criteria selected
 
         :param server_handle: A handle to SCMR
         :param service_type: ServiceType flags to filter by service type
@@ -573,8 +602,8 @@ class SCMRApi(object):
                 raise exc
 
             ioctl_resp = SMB2IOCTLResponse()
-            ioctl_resp.unpack(exc.header['data'].get_value())
-            pdu_resp = self._parse_pdu(ioctl_resp['buffer'].get_value(), opnum)
+            ioctl_resp.unpack(exc.header["data"].get_value())
+            pdu_resp = self._parse_pdu(ioctl_resp["buffer"].get_value(), opnum)
             read_data = self.handle.read(0, 3256)  # 4280 - 1024
             data = pdu_resp + read_data
 
@@ -590,35 +619,37 @@ class SCMRApi(object):
             # When ending with ASCII chars the 2nd byte is 00.
             null_idx = buffer.index(b"\x00\x00")
             null_idx += null_idx % 2
-            return buffer[:null_idx].decode('utf-16-le')
+            return buffer[:null_idx].decode("utf-16-le")
 
         # now we have all the data, let's unpack it
         services = []
         services_returned = struct.unpack("<i", data[-12:-8])[0]
         offset = 4
-        for i in range(0, services_returned):
-            name_offset = struct.unpack("<i", data[offset:4 + offset])[0]
-            disp_offset = struct.unpack("<i", data[4 + offset:8 + offset])[0]
+        for _ in range(0, services_returned):
+            name_offset = struct.unpack("<i", data[offset : 4 + offset])[0]
+            disp_offset = struct.unpack("<i", data[4 + offset : 8 + offset])[0]
             service_status = ServiceStatus()
-            service_name = extract_unicode(data[name_offset + 4:])
-            display_name = extract_unicode(data[disp_offset + 4:])
-            service_status.unpack(data[offset + 8:])
+            service_name = extract_unicode(data[name_offset + 4 :])
+            display_name = extract_unicode(data[disp_offset + 4 :])
+            service_status.unpack(data[offset + 8 :])
 
             service_info = {
                 "display_name": display_name,
                 "service_name": service_name,
-                "service_status": service_status
+                "service_status": service_status,
             }
             services.append(service_info)
             offset += 8 + len(service_status)
 
         return services
 
-    def open_sc_manager_w(self, machine_name, database_name, desired_access):
+    def open_sc_manager_w(
+        self, machine_name: str, database_name: Optional[str], desired_access: int
+    ):
         # https://msdn.microsoft.com/en-us/library/cc245942.aspx
-        opnum = 15
+        opnum: int = 15
 
-        data = self._marshal_string(machine_name, unique=True)
+        data: bytes = self._marshal_string(machine_name, unique=True)
         data += self._marshal_string(database_name)
         data += struct.pack("<i", desired_access)
 
@@ -647,6 +678,8 @@ class SCMRApi(object):
 
         data = service_handle
         data += struct.pack("<i", len(args))
+
+        # noinspection PyTypeChecker
         data += b"".join([self._marshal_string(arg) for arg in args])
         data += b"\x00" * 4  # terminate arg list
 
@@ -654,8 +687,22 @@ class SCMRApi(object):
         return_code = struct.unpack("<i", res)[0]
         self._parse_error(return_code, "RStartServiceW")
 
-    def create_service_w(self, server_handle, service_name, display_name, desired_access, service_type, start_type,
-                         error_control, path, load_order_group, tag_id, dependencies, username, password):
+    def create_service_w(
+        self,
+        server_handle,
+        service_name,
+        display_name,
+        desired_access,
+        service_type,
+        start_type,
+        error_control,
+        path,
+        load_order_group,
+        tag_id,
+        dependencies,
+        username,
+        password,
+    ):
         # https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/6a8ca926-9477-4dd4-b766-692fab07227e
         opnum = 12
 
@@ -692,57 +739,60 @@ class SCMRApi(object):
 
     def _invoke(self, function_name, opnum, data):
         req = RequestPDU()
-        req['pfx_flags'].set_flag(PFlags.PFC_FIRST_FRAG)
-        req['pfx_flags'].set_flag(PFlags.PFC_LAST_FRAG)
-        req['packed_drep'] = DataRepresentationFormat()
-        req['call_id'] = self.call_id
+        req["pfx_flags"].set_flag(PFlags.PFC_FIRST_FRAG)
+        req["pfx_flags"].set_flag(PFlags.PFC_LAST_FRAG)
+        req["packed_drep"] = DataRepresentationFormat()
+        req["call_id"] = self.call_id
         self.call_id += 1
 
-        req['opnum'] = opnum
-        req['stub_data'] = data
+        req["opnum"] = opnum
+        req["stub_data"] = data
 
         ioctl_request = SMB2IOCTLRequest()
-        ioctl_request['ctl_code'] = CtlCode.FSCTL_PIPE_TRANSCEIVE
-        ioctl_request['file_id'] = self.handle.file_id
-        ioctl_request['max_output_response'] = 1024
-        ioctl_request['flags'] = IOCTLFlags.SMB2_0_IOCTL_IS_FSCTL
-        ioctl_request['buffer'] = req
+        ioctl_request["ctl_code"] = CtlCode.FSCTL_PIPE_TRANSCEIVE
+        ioctl_request["file_id"] = self.handle.file_id
+        ioctl_request["max_output_response"] = 1024
+        ioctl_request["flags"] = IOCTLFlags.SMB2_0_IOCTL_IS_FSCTL
+        ioctl_request["buffer"] = req
 
         session_id = self.tree.session.session_id
         tree_id = self.tree.tree_connect_id
-        log.info("Sending svcctl RPC request for %s" % function_name)
+        log.info("Sending svcctl RPC request for %s", function_name)
         log.debug(str(req))
-        request = self.tree.session.connection.send(ioctl_request,
-                                                    sid=session_id,
-                                                    tid=tree_id)
-        log.info("Receiving svcctl RPC response for %s" % function_name)
+        request = self.tree.session.connection.send(
+            ioctl_request, sid=session_id, tid=tree_id
+        )
+        log.info("Receiving svcctl RPC response for %s", function_name)
         resp = self.tree.session.connection.receive(request)
         ioctl_resp = SMB2IOCTLResponse()
-        ioctl_resp.unpack(resp['data'].get_value())
+        ioctl_resp.unpack(resp["data"].get_value())
         log.debug(str(ioctl_resp))
 
-        pdu_resp = self._parse_pdu(ioctl_resp['buffer'].get_value(), opnum)
+        pdu_resp = self._parse_pdu(ioctl_resp["buffer"].get_value(), opnum)
         return pdu_resp
 
     def _parse_pdu(self, data, opnum):
-        pdu_resp = parse_pdu(data)
+        pdu_resp: PDU = parse_pdu(data)
         if not isinstance(pdu_resp, ResponsePDU):
-            raise PDUException("Expecting ResponsePDU for opnum %d response "
-                               "but got: %s" % (opnum, str(pdu_resp)))
-        return pdu_resp['stub_data'].get_value()
+            raise PDUException(
+                f"Expecting ResponsePDU for opnum "
+                f"{opnum} response but got: {pdu_resp}"
+            )
 
-    def _parse_error(self, return_code, function_name):
-        error_string = "ERROR_UNKNOWN"
-        for error_name, error_val in vars(ScmrReturnValues).items():
+        return pdu_resp["stub_data"].get_value()
+
+    def _parse_error(self, return_code, function_name) -> None:
+        error_string: str = "ERROR_UNKNOWN"
+        for error_name, error_val in vars(SCMRReturnValues).items():
             if isinstance(error_val, int) and error_val == return_code:
                 error_string = error_name
                 break
         if not error_string.startswith("ERROR_SUCCESS"):
             raise SCMRException(function_name, return_code, error_string)
 
-    def _marshal_string(self, string, unique=False, max_count=None):
+    def _marshal_string(self, string, unique=False) -> bytes:
         """
-        Strings are encoding as a UTF-16-LE byte structure and are marshalled
+        Strings are encoding as a UTF-16-LE byte structure and are marshaled
         in a particular format to send over RPC. The format is as follows
 
             Referent ID (Int32): A unique ID for the string, we just set to 1
@@ -770,10 +820,14 @@ class SCMRApi(object):
         unicode_count = int(len(unicode_string) / 2)
         count = struct.pack("<i", unicode_count)
         offset = b"\x00" * 4
-        bytes = referent + count + offset + count + unicode_string
+
+        # noinspection PyTypeChecker
+        str_bytes = referent + count + offset + count + unicode_string
 
         # each parameter needs to be aligned at a 4-byte boundary so get the
         # padding length if necessary
-        mod = len(bytes) % 4
+        mod = len(str_bytes) % 4
         padding_len = 0 if mod == 0 else 4 - mod
-        return bytes + (b"\x00" * padding_len)
+
+        # noinspection PyTypeChecker
+        return str_bytes + (b"\x00" * padding_len)

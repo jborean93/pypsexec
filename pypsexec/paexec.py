@@ -5,10 +5,10 @@
 import os
 import pkgutil
 import struct
-
 from collections import (
     OrderedDict,
 )
+from typing import Optional, Generator, Any, Tuple
 
 from smbprotocol.structure import (
     BoolField,
@@ -21,26 +21,52 @@ from smbprotocol.structure import (
     DateTimeField,
 )
 
-from pypsexec.exceptions import PAExecException
+from .exceptions import PAExecException
 
 
-def paexec_out_stream(buffer_size=4096):
+def out_stream(
+    data: bytes, buffer_size: int = 4096
+) -> Generator[Tuple[bytes, int], Any, None]:
     """
-    Creates a generator to read the PAExec executable data as a bytes stream. Currently the version of the paexec.exe
-    is at 1.27.
+    Creates a generator chunking up `data` into
+    `buffer_size` bytes sequences.
+
+    :param data: Data to chunk.
+    :param buffer_size: Chunk size.
+    :return:  (bytes, offset) = the bytes and the offset of the byte string
+    """
+
+    byte_count = len(data)
+    for i in range(0, byte_count, buffer_size):
+        yield data[i : i + buffer_size], i
+
+
+def paexec_out_stream(
+    path: Optional[str] = None, buffer_size: int = 4096
+) -> Generator[Tuple[bytes, int], Any, None]:
+    """
+    Creates a generator to read the PAExec executable data as a
+    byte stream. Currently, the version of the paexec.exe is at 1.27.
 
     https://www.poweradmin.com/paexec/paexec.exe
 
+    :param path: Path to PAExec file
     :param buffer_size: The size of the buffer yielded
-    :return:  (bytes, offset) = the butes and the offset of the bytes string
+    :return:  (bytes, offset) = the bytes and the offset of the byte string
     """
-    b_data = pkgutil.get_data('pypsexec', 'paexec.exe')
-    byte_count = len(b_data)
-    for i in range(0, byte_count, buffer_size):
-        yield b_data[i:i + buffer_size], i
+
+    if path:
+        with open(path, "rb") as paexec_file:
+            data: bytes = paexec_file.read()
+    else:
+        data: bytes = pkgutil.get_data(
+            "pypsexec", os.path.join("resources", "paexec.exe")
+        )
+
+    yield from out_stream(data, buffer_size)
 
 
-def get_unique_id(pid, computer_name):
+def get_unique_id(pid: int, computer_name: str) -> int:
     """
     https://github.com/poweradminllc/PAExec/blob/master/Remote.cpp#L1045-L1065
     DWORD RemMsg::GetUniqueID()
@@ -54,20 +80,24 @@ def get_unique_id(pid, computer_name):
     the processed based on the settings.
 
     :param pid: (int) the process id of the current host
-    :param computer_name: (str/unicode) of the current hostname
+    :param computer_name: (str/Unicode) of the current hostname
     :return: int of the unique ID derived from the PID and Computer Name
     """
-    bcomp_name = computer_name.encode('utf-16-le')[:4]
-    bcomp_name = bcomp_name + (b"\x00" * (4 - len(bcomp_name)))
-    return pid ^ struct.unpack("<L", bcomp_name)[0]
+    comp_name: bytes = computer_name.encode("utf-16-le")[:4]
+    comp_name += b"\x00" * (4 - len(comp_name))
+
+    # noinspection PyTypeChecker
+    return pid ^ struct.unpack("<L", comp_name)[0]
 
 
-class PAExecMsgId(object):
+# pylint: disable=too-few-public-methods
+class PAExecMsgId:
     """
     https://github.com/poweradminllc/PAExec/blob/master/stdafx.h#L52-L57
     The various ID's used by PAExec when sending messages to and from the
     remote service.
     """
+
     MSGID_SETTINGS = 1
     MSGID_RESP_SEND_FILES = 2
     MSGID_SENT_FILES = 3
@@ -76,11 +106,13 @@ class PAExecMsgId(object):
     MSGID_FAILED = 6
 
 
-class ProcessPriority(object):
+# pylint: disable=too-few-public-methods
+class ProcessPriority:
     """
     https://msdn.microsoft.com/en-us/library/windows/desktop/ms683211(v=vs.85).aspx
     Set's the priority of the thread in the current process
     """
+
     ABOVE_NORMAL_PRIORITY_CLASS = 0x00008000
     BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
     HIGH_PRIORITY_CLASS = 0x00000080
@@ -92,34 +124,29 @@ class ProcessPriority(object):
 class PAExecMsg(Structure):
     """
     Generic message from PAExec, the first 2 bytes denotes the Msg ID
-    that tells the host the type of message it is and the buffer contents
+    that tells the host the type of message it is, and the buffer content
     varies based on the type of message that is being sent of received.
 
     This is slightly different to the PAExecSettingsMsg as the data in the
     settings msg is xor'd to slightly obfuscate the data. The current buffer
     structures that have been defined are PAStartBuffer, PAReturnBuffer
     """
+
     def __init__(self):
-        self.fields = OrderedDict([
-            ('msg_id', EnumField(
-                size=2,
-                enum_type=PAExecMsgId
-            )),
-            ('unique_id', IntField(size=4)),
-            ('buffer_length', IntField(
-                size=4,
-                default=lambda s: len(s['buffer'])
-            )),
-            ('buffer', BytesField(
-                size=lambda s: s['buffer_length'].get_value()
-            ))
-        ])
-        super(PAExecMsg, self).__init__()
+        self.fields = OrderedDict(
+            [
+                ("msg_id", EnumField(size=2, enum_type=PAExecMsgId)),
+                ("unique_id", IntField(size=4)),
+                ("buffer_length", IntField(size=4, default=lambda s: len(s["buffer"]))),
+                ("buffer", BytesField(size=lambda s: s["buffer_length"].get_value())),
+            ]
+        )
+        super().__init__()
 
     def check_resp(self):
-        msg_id = self['msg_id'].get_value()
+        msg_id = self["msg_id"].get_value()
         if msg_id != PAExecMsgId.MSGID_OK:
-            raise PAExecException(msg_id, self['buffer'].get_value())
+            raise PAExecException(msg_id, self["buffer"].get_value())
 
 
 class PAExecSettingsMsg(Structure):
@@ -137,43 +164,45 @@ class PAExecSettingsMsg(Structure):
     The buffer value contains the PAExecSettingsBuffer type that contains all
     the settings used by PAExec.
     """
+
     def __init__(self):
-        self.fields = OrderedDict([
-            ('msg_id', EnumField(
-                size=2,
-                default=PAExecMsgId.MSGID_SETTINGS,
-                enum_type=PAExecMsgId
-            )),
-            ('xor_val', IntField(
-                size=4,
-                default=os.urandom(4)
-            )),
-            ('unique_id', IntField(size=4)),
-            ('buffer_len', IntField(size=4)),
-            ('buffer', StructureField(
-                structure_type=PAExecSettingsBuffer
-            ))
-        ])
-        super(PAExecSettingsMsg, self).__init__()
+        self.fields = OrderedDict(
+            [
+                (
+                    "msg_id",
+                    EnumField(
+                        size=2,
+                        default=PAExecMsgId.MSGID_SETTINGS,
+                        enum_type=PAExecMsgId,
+                    ),
+                ),
+                ("xor_val", IntField(size=4, default=os.urandom(4))),
+                ("unique_id", IntField(size=4)),
+                ("buffer_len", IntField(size=4)),
+                ("buffer", StructureField(structure_type=PAExecSettingsBuffer)),
+            ]
+        )
+        super().__init__()
 
     def pack(self):
         # need to xor the buffer as expected by PAExec
-        xor_value = self['xor_val'].get_value()
+        xor_value = self["xor_val"].get_value()
 
         # the id, length and buffer itself is xor'd
-        input_data = self['unique_id'].pack() + self['buffer_len'].pack() + \
-            self['buffer'].pack()
+        input_data = (
+            self["unique_id"].pack() + self["buffer_len"].pack() + self["buffer"].pack()
+        )
         buffer = self._xor_data(xor_value, input_data)
 
         # build the final data structure
-        data = self['msg_id'].pack()
-        data += self['xor_val'].pack()
+        data = self["msg_id"].pack()
+        data += self["xor_val"].pack()
         data += buffer
 
         return data
 
     def unpack(self, data):
-        # need to de-xor the buffer to get human readable values
+        # need to de-xor the buffer to get human-readable values
         xor_value = struct.unpack("<L", data[2:6])[0]
         buffer = data[6:]
         buffer_data = self._xor_data(xor_value, buffer)
@@ -183,11 +212,11 @@ class PAExecSettingsMsg(Structure):
         structure_a = PAExecSettingsBuffer()
         structure_a.unpack(buffer_data[8:])
 
-        self['msg_id'] = data[:2]
-        self['xor_val'] = data[2:6]
-        self['unique_id'] = unique_id
-        self['buffer_len'] = buffer_len
-        self['buffer'] = structure_a
+        self["msg_id"] = data[:2]
+        self["xor_val"] = data[2:6]
+        self["unique_id"] = unique_id
+        self["buffer_len"] = buffer_len
+        self["buffer"] = structure_a
         return b""
 
     def _xor_data(self, xor_value, data):
@@ -199,7 +228,7 @@ class PAExecSettingsMsg(Structure):
             xored_value = int_value ^ xor_value
             new_bytes = struct.pack("<L", xored_value)
             buffer += new_bytes[:1]
-            next_bytes = new_bytes[1:] + data[i + 4:i + 5]
+            next_bytes = new_bytes[1:] + data[i + 4 : i + 5]
             xor_value += 3
 
         int_value = struct.unpack("<L", next_bytes)[0]
@@ -221,124 +250,152 @@ class PAExecSettingsBuffer(Structure):
     All BytesFields in this structure are utf-16-le encoded strings and should
     be encoded before setting in the structure.
     """
+
     def __init__(self):
-        self.fields = OrderedDict([
-            ('version', IntField(
-                size=4,
-                default=1
-            )),
-            ('num_processors', IntField(
-                size=4,
-                default=lambda s: len(s['processors'].get_value())
-            )),
-            ('processors', ListField(
-                size=lambda s: s['num_processors'].get_value() * 4,
-                list_count=lambda s: s['num_processors'].get_value(),
-                list_type=IntField(size=4)
-            )),
-            ('copy_files', BoolField(size=1)),
-            ('force_copy', BoolField(size=1)),
-            ('copy_if_newer_or_higher_ver', BoolField(size=1)),
-            ('asynchronous', BoolField(size=1)),
-            ('dont_load_profile', BoolField(size=1)),
-            ('interactive_session', IntField(size=4)),
-            ('interactive', BoolField(size=1)),
-            ('run_elevated', BoolField(size=1)),
-            ('run_limited', BoolField(size=1)),
-            ('password_len', IntField(
-                size=4,
-                default=lambda s: int(len(s['password']) / 2)
-            )),
-            ('password', BytesField(
-                size=lambda s: s['password_len'].get_value() * 2
-            )),
-            ('username_len', IntField(
-                size=4,
-                default=lambda s: int(len(s['username']) / 2)
-            )),
-            ('username', BytesField(
-                size=lambda s: s['username_len'].get_value() * 2
-            )),
-            ('use_system_account', BoolField(size=1)),
-            ('working_dir_len', IntField(
-                size=4,
-                default=lambda s: int(len(s['working_dir']) / 2)
-            )),
-            ('working_dir', BytesField(
-                size=lambda s: s['working_dir_len'].get_value() * 2
-            )),
-            ('show_ui_on_win_logon', BoolField(size=1)),
-            ('priority', EnumField(
-                size=4,
-                default=ProcessPriority.NORMAL_PRIORITY_CLASS,
-                enum_type=ProcessPriority
-            )),
-            ('executable_len', IntField(
-                size=4,
-                default=lambda s: int(len(s['executable']) / 2)
-            )),
-            ('executable', BytesField(
-                size=lambda s: s['executable_len'].get_value() * 2
-            )),
-            ('arguments_len', IntField(
-                size=4,
-                default=lambda s: int(len(s['arguments']) / 2)
-            )),
-            ('arguments', BytesField(
-                size=lambda s: s['arguments_len'].get_value() * 2
-            )),
-            ('disable_file_redirection', BoolField(size=1)),
-            ('enable_debug', BoolField(size=1)),
-            ('remote_log_path_len', IntField(
-                size=4,
-                default=lambda s: int(len(s['remote_log_path']) / 2)
-            )),
-            ('remote_log_path', BytesField(
-                size=lambda s: s['remote_log_path_len'].get_value() * 2
-            )),
-            ('no_delete', BoolField(size=1)),
-            ('src_dir_len', IntField(
-                size=4,
-                default=lambda s: int(len(s['src_dir']) / 2)
-            )),
-            ('src_dir', BytesField(
-                size=lambda s: s['src_dir_len'].get_value() * 2
-            )),
-            ('dest_dir_len', IntField(
-                size=4,
-                default=lambda s: int(len(s['dest_dir']) / 2)
-            )),
-            ('dest_dir', BytesField(
-                size=lambda s: s['dest_dir_len'].get_value() * 2
-            )),
-            ('num_src_files', IntField(
-                size=4,
-                default=lambda s: len(s['src_files'].get_value())
-            )),
-            ('src_files', ListField(
-                list_count=lambda s: s['num_src_files'].get_value(),
-                list_type=StructureField(structure_type=PAExecFileInfo),
-                unpack_func=lambda s, d:
-                self._unpack_file_list(s, d, 'num_src_files')
-            )),
-            ('num_dest_files', IntField(
-                size=4,
-                default=lambda s: len(s['dest_files'].get_value())
-            )),
-            ('dest_files', ListField(
-                list_count=lambda s: s['num_dest_files'].get_value(),
-                list_type=StructureField(structure_type=PAExecFileInfo),
-                unpack_func=lambda s, d:
-                self._unpack_file_list(s, d, 'num_dest_files')
-            )),
-            ('timeout_seconds', IntField(size=4))
-        ])
-        super(PAExecSettingsBuffer, self).__init__()
+        self.fields = OrderedDict(
+            [
+                ("version", IntField(size=4, default=1)),
+                (
+                    "num_processors",
+                    IntField(
+                        size=4, default=lambda s: len(s["processors"].get_value())
+                    ),
+                ),
+                (
+                    "processors",
+                    ListField(
+                        size=lambda s: s["num_processors"].get_value() * 4,
+                        list_count=lambda s: s["num_processors"].get_value(),
+                        list_type=IntField(size=4),
+                    ),
+                ),
+                ("copy_files", BoolField(size=1)),
+                ("force_copy", BoolField(size=1)),
+                ("copy_if_newer_or_higher_ver", BoolField(size=1)),
+                ("asynchronous", BoolField(size=1)),
+                ("dont_load_profile", BoolField(size=1)),
+                ("interactive_session", IntField(size=4)),
+                ("interactive", BoolField(size=1)),
+                ("run_elevated", BoolField(size=1)),
+                ("run_limited", BoolField(size=1)),
+                (
+                    "password_len",
+                    IntField(size=4, default=lambda s: int(len(s["password"]) / 2)),
+                ),
+                (
+                    "password",
+                    BytesField(size=lambda s: s["password_len"].get_value() * 2),
+                ),
+                (
+                    "username_len",
+                    IntField(size=4, default=lambda s: int(len(s["username"]) / 2)),
+                ),
+                (
+                    "username",
+                    BytesField(size=lambda s: s["username_len"].get_value() * 2),
+                ),
+                ("use_system_account", BoolField(size=1)),
+                (
+                    "working_dir_len",
+                    IntField(size=4, default=lambda s: int(len(s["working_dir"]) / 2)),
+                ),
+                (
+                    "working_dir",
+                    BytesField(size=lambda s: s["working_dir_len"].get_value() * 2),
+                ),
+                ("show_ui_on_win_logon", BoolField(size=1)),
+                (
+                    "priority",
+                    EnumField(
+                        size=4,
+                        default=ProcessPriority.NORMAL_PRIORITY_CLASS,
+                        enum_type=ProcessPriority,
+                    ),
+                ),
+                (
+                    "executable_len",
+                    IntField(size=4, default=lambda s: int(len(s["executable"]) / 2)),
+                ),
+                (
+                    "executable",
+                    BytesField(size=lambda s: s["executable_len"].get_value() * 2),
+                ),
+                (
+                    "arguments_len",
+                    IntField(size=4, default=lambda s: int(len(s["arguments"]) / 2)),
+                ),
+                (
+                    "arguments",
+                    BytesField(size=lambda s: s["arguments_len"].get_value() * 2),
+                ),
+                ("disable_file_redirection", BoolField(size=1)),
+                ("enable_debug", BoolField(size=1)),
+                (
+                    "remote_log_path_len",
+                    IntField(
+                        size=4, default=lambda s: int(len(s["remote_log_path"]) / 2)
+                    ),
+                ),
+                (
+                    "remote_log_path",
+                    BytesField(size=lambda s: s["remote_log_path_len"].get_value() * 2),
+                ),
+                ("no_delete", BoolField(size=1)),
+                (
+                    "src_dir_len",
+                    IntField(size=4, default=lambda s: int(len(s["src_dir"]) / 2)),
+                ),
+                (
+                    "src_dir",
+                    BytesField(size=lambda s: s["src_dir_len"].get_value() * 2),
+                ),
+                (
+                    "dest_dir_len",
+                    IntField(size=4, default=lambda s: int(len(s["dest_dir"]) / 2)),
+                ),
+                (
+                    "dest_dir",
+                    BytesField(size=lambda s: s["dest_dir_len"].get_value() * 2),
+                ),
+                (
+                    "num_src_files",
+                    IntField(size=4, default=lambda s: len(s["src_files"].get_value())),
+                ),
+                (
+                    "src_files",
+                    ListField(
+                        list_count=lambda s: s["num_src_files"].get_value(),
+                        list_type=StructureField(structure_type=PAExecFileInfo),
+                        unpack_func=lambda s, d: self._unpack_file_list(
+                            s, d, "num_src_files"
+                        ),
+                    ),
+                ),
+                (
+                    "num_dest_files",
+                    IntField(
+                        size=4, default=lambda s: len(s["dest_files"].get_value())
+                    ),
+                ),
+                (
+                    "dest_files",
+                    ListField(
+                        list_count=lambda s: s["num_dest_files"].get_value(),
+                        list_type=StructureField(structure_type=PAExecFileInfo),
+                        unpack_func=lambda s, d: self._unpack_file_list(
+                            s, d, "num_dest_files"
+                        ),
+                    ),
+                ),
+                ("timeout_seconds", IntField(size=4)),
+            ]
+        )
+        super().__init__()
 
     def _unpack_file_list(self, structure, data, len_field):
         files = []
         remaining_data = data
-        for i in range(0, structure[len_field].get_value()):
+        for _ in range(0, structure[len_field].get_value()):
             file_structure, remaining_data = self._get_file(remaining_data)
             files.append(file_structure)
         return files
@@ -359,49 +416,57 @@ class PAExecFileInfo(Structure):
     https://github.com/poweradminllc/PAExec/blob/master/stdafx.h#L59-L82
     class FileInfo
 
-    Structure the contains information about a file to copy or move and is set
+    The Structure contains information about a file to copy or move and is set
     in PAExecSettingsBuffer. Like other PAExec messages, fields that take in a
-    string take in a utf-16-le encoded string as a bytes structure.
+    string take in an utf-16-le encoded string as a byte structure.
     """
+
     def __init__(self):
-        self.fields = OrderedDict([
-            ('filename_len', IntField(
-                size=4,
-                default=lambda s: int(len(s['filename']) / 2)
-            )),
-            ('filename', BytesField(
-                size=lambda s: s['filename_len'].get_value() * 2
-            )),
-            ('file_last_write', DateTimeField(size=8)),
-            ('file_version_ls', IntField(size=4)),
-            ('file_version_ms', IntField(size=4)),
-            ('copy_file', BoolField(size=1))
-        ])
-        super(PAExecFileInfo, self).__init__()
+        self.fields = OrderedDict(
+            [
+                (
+                    "filename_len",
+                    IntField(size=4, default=lambda s: int(len(s["filename"]) / 2)),
+                ),
+                (
+                    "filename",
+                    BytesField(size=lambda s: s["filename_len"].get_value() * 2),
+                ),
+                ("file_last_write", DateTimeField(size=8)),
+                ("file_version_ls", IntField(size=4)),
+                ("file_version_ms", IntField(size=4)),
+                ("copy_file", BoolField(size=1)),
+            ]
+        )
+        super().__init__()
 
 
 class PAExecStartBuffer(Structure):
     """
-    Can't find where this is explicitly defined but this is the buffer used in
+    Can't find where this is explicitly defined, but this is the buffer used in
     the PAExecMsg to start a remote process. On receipt of this message, the
     remote process will match the settings based on the unique_id passed in and
     start the process based on those settings.
 
-    The comp_name is a utf-16-le encoded string of the local hostname and
+    The comp_name is an utf-16-le encoded string of the local hostname and
     should match the host used in the service name.
     """
+
     def __init__(self):
-        self.fields = OrderedDict([
-            ('process_id', IntField(size=4)),
-            ('comp_name_length', IntField(
-                size=4,
-                default=lambda s: int(len(s['comp_name']) / 2)
-            )),
-            ('comp_name', BytesField(
-                size=lambda s: s['comp_name_length'].get_value() * 2
-            ))
-        ])
-        super(PAExecStartBuffer, self).__init__()
+        self.fields = OrderedDict(
+            [
+                ("process_id", IntField(size=4)),
+                (
+                    "comp_name_length",
+                    IntField(size=4, default=lambda s: int(len(s["comp_name"]) / 2)),
+                ),
+                (
+                    "comp_name",
+                    BytesField(size=lambda s: s["comp_name_length"].get_value() * 2),
+                ),
+            ]
+        )
+        super().__init__()
 
 
 class PAExecReturnBuffer(Structure):
@@ -410,8 +475,7 @@ class PAExecReturnBuffer(Structure):
     completion of the remote process. It contains a single Int32 value that is
     the return code of the process.
     """
+
     def __init__(self):
-        self.fields = OrderedDict([
-            ('return_code', IntField(size=4))
-        ])
-        super(PAExecReturnBuffer, self).__init__()
+        self.fields = OrderedDict([("return_code", IntField(size=4))])
+        super().__init__()

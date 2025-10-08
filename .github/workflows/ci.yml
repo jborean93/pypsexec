@@ -37,6 +37,8 @@ jobs:
         - 3.9
         - '3.10'
         - '3.11'
+        - '3.12'
+        - '3.13'
         python-arch:
         - x86
         - x64
@@ -44,11 +46,13 @@ jobs:
         exclude:
         - os: ubuntu-latest
           python-arch: x86
+        - os: ubuntu-latest
+          python-version: 3.7
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v5
 
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
         architecture: ${{ matrix.python-arch }}
@@ -73,14 +77,14 @@ jobs:
 
     - name: Upload Test Results
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Unit Test Results (${{ matrix.os }} ${{ matrix.python-version }} ${{ matrix.python-arch }})
         path: ./junit/test-results.xml
 
     - name: Upload Coverage Results
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Coverage Results (${{ matrix.os }} ${{ matrix.python-version }} ${{ matrix.python-arch }})
         path: ./coverage.xml
@@ -102,7 +106,7 @@ jobs:
       id-token: write
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v5
 
     - name: Installing baseline packages
       run: python -m pip install --upgrade pip setuptools wheel
@@ -111,7 +115,7 @@ jobs:
       run: python setup.py sdist bdist_wheel
 
     - name: Capture Wheel and SDist
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: artifact
         path: dist/*

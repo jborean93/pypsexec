@@ -22,9 +22,8 @@ class PAExecException(PypsexecException):
     @property
     def message(self):
         error_length = struct.unpack("<L", self.buffer[:4])[0] * 2
-        error_msg = self.buffer[4:error_length + 4]
-        return "Received exception from remote PAExec service: %s"\
-               % (error_msg.decode('utf-16-le'))
+        error_msg = self.buffer[4 : error_length + 4]
+        return f"Received exception from remote PAExec service: {error_msg.decode('utf-16-le')}"
 
     def __str__(self):
         return self.message
@@ -46,8 +45,7 @@ class SCMRException(PypsexecException):
 
     @property
     def message(self):
-        return "Exception calling %s. Code: %d, Msg: %s"\
-               % (self.function, self.return_code, self.error_msg)
+        return f"Exception calling {self.function}. Code: {self.return_code}, Msg: {self.error_msg}"
 
     def __str__(self):
         return self.message
