@@ -9,7 +9,11 @@ import time
 import uuid
 from types import TracebackType
 from typing import Optional, List, Tuple, Type
-from typing_extensions import Literal
+
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 
 from smbprotocol.connection import (
     Connection,
