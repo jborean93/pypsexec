@@ -248,7 +248,7 @@ class Client:
         log.info("Disconnecting from SMB Tree %s", smb_tree.share_name)
         smb_tree.disconnect()
 
-    def cleanup(self):
+    def cleanup(self, executable_pattern: str = "PAExec-*.exe"):
         """
         Cleans up any old services or payloads that may have been left behind
         on a previous failure. This will search C:\\Windows for any files
@@ -289,7 +289,9 @@ class Client:
                 send=False,
             ),
             share.query_directory(
-                "PAExec-*.exe", FileInformationClass.FILE_NAMES_INFORMATION, send=False
+                executable_pattern,
+                FileInformationClass.FILE_NAMES_INFORMATION,
+                send=False,
             ),
             share.close(False, send=False),
         ]
@@ -315,7 +317,7 @@ class Client:
             self._delete_file(smb_tree, file_name)
 
     @contextmanager
-    def _open_main_pipe(
+    def _main_pipe(
         self, smb_tree: TreeConnect, attempts: int = 3, backoff: float = 5.0
     ) -> Generator[Open, Any, None]:
         # write the settings to the main PAExec pipe
@@ -349,6 +351,7 @@ class Client:
                     i,
                     backoff,
                 )
+
                 time.sleep(backoff)
 
         raise PypsexecException(
@@ -395,9 +398,7 @@ class Client:
         asynchronous: bool,
         stdout: Type[OutputPipe],
         stderr: Type[OutputPipe],
-        stdin: Optional[
-            Union[bytes, Callable[[], Generator[bytes, None, None]]]
-        ]
+        stdin: Optional[Union[bytes, Callable[[], Generator[bytes, None, None]]]],
     ):
         if not interactive and not asynchronous:
             log.info("Connecting to remote pipes to retrieve output")
@@ -571,7 +572,7 @@ class Client:
         input_data["buffer"] = settings
 
         # write the settings to the main PAExec pipe
-        with self._open_main_pipe(smb_tree) as main_pipe:
+        with self._main_pipe(smb_tree) as main_pipe:
             log.info("Writing PAExecSettingsMsg to the main PAExec pipe")
             log.info("%s", input_data)
             main_pipe.write(input_data.pack(), 0)
@@ -593,7 +594,9 @@ class Client:
             start_buffer["comp_name"] = self.comp_name.encode("utf-16-le")
             start_msg["buffer"] = start_buffer
 
-            log.info("Writing PAExecMsg with PAExecStartBuffer to start the remote process")
+            log.info(
+                "Writing PAExecMsg with PAExecStartBuffer to start the remote process"
+            )
             log.debug("%s", start_msg)
             main_pipe.write(start_msg.pack(), 0)
 
@@ -604,7 +607,7 @@ class Client:
                 asynchronous=asynchronous,
                 stdout=stdout,
                 stderr=stderr,
-                stdin=stdin
+                stdin=stdin,
             )
 
         log.info("Disconnecting from SMB Tree %s", smb_tree.share_name)
