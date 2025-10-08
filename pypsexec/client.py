@@ -8,7 +8,9 @@ import socket
 import time
 import uuid
 from types import TracebackType
-from typing import Optional, List, Tuple, Type
+from typing import Optional, List, Tuple, Type, Generator, Callable
+
+from black.comments import Union
 
 try:
     from typing import Literal
@@ -59,6 +61,7 @@ from pypsexec.pipe import (
     InputPipe,
     OutputPipeBytes,
     open_pipe,
+    OutputPipe,
 )
 from pypsexec.scmr import (
     EnumServiceState,
@@ -349,28 +352,30 @@ class Client:
 
     def run_executable(
         self,
-        executable,
-        arguments=None,
-        processors=None,
-        asynchronous=False,
-        load_profile=True,
-        interactive_session=0,
-        interactive=False,
-        run_elevated=False,
-        run_limited=False,
-        username=None,
-        password=None,
-        use_system_account=False,
-        working_dir=None,
-        show_ui_on_win_logon=False,
-        priority=ProcessPriority.NORMAL_PRIORITY_CLASS,
-        remote_log_path=None,
-        timeout_seconds=0,
-        stdout=OutputPipeBytes,
-        stderr=OutputPipeBytes,
-        stdin=None,
-        wow64=False,
-    ):
+        executable: str,
+        arguments: str = None,
+        processors: Optional[List[int]] = None,
+        asynchronous: bool = False,
+        load_profile: bool = True,
+        interactive_session: int = 0,
+        interactive: bool = False,
+        run_elevated: bool = False,
+        run_limited: bool = False,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        use_system_account: bool = False,
+        working_dir: Optional[str] = None,
+        show_ui_on_win_logon: bool = False,
+        priority: int = ProcessPriority.NORMAL_PRIORITY_CLASS,
+        remote_log_path: Optional[str] = None,
+        timeout_seconds: int = 0,
+        stdout: Type[OutputPipe] = OutputPipeBytes,
+        stderr: Type[OutputPipe] = OutputPipeBytes,
+        stdin: Optional[
+            Union[bytes, Callable[[], Generator[bytes, None, None]]]
+        ] = None,
+        wow64: bool = False,
+    ) -> Tuple[bytes, bytes, int]:
         """
         Runs a command over the PAExec/PSExec interface based on the options
         provided. At a minimum, the executable argument is required and the
@@ -514,11 +519,11 @@ class Client:
             with stdout(smb_tree, self._stdout_pipe_name) as stdout_pipe, stderr(
                 smb_tree, self._stderr_pipe_name
             ) as stderr_pipe, InputPipe(smb_tree, self._stdin_pipe_name) as stdin_pipe:
-                # wait until the stdout and stderr pipes have sent their first
-                # response
+                # wait until the stdout and stderr pipes have sent their first response
                 log.debug("Waiting for stdout pipe to send first request")
                 while not stdout_pipe.sent_first:
                     pass
+
                 log.debug("Waiting for stderr pipe to send first request")
                 while not stderr_pipe.sent_first:
                     pass
