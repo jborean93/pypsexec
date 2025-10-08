@@ -8,7 +8,7 @@ import socket
 import time
 import uuid
 from types import TracebackType
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Type
 from typing_extensions import Literal
 
 from smbprotocol.connection import (
@@ -609,7 +609,7 @@ class Client:
         return self
 
     def __exit__(
-        self, exc_type: type[Exception], exc_val: Exception, exc_tb: TracebackType
+        self, exc_type: Type[Exception], exc_val: Exception, exc_tb: TracebackType
     ) -> None:
         self.disconnect()
 
