@@ -383,10 +383,10 @@ class Service:
 
         # connect to the desired service in question
         desired_access = (
-            DesiredAccess.SERVICE_QUERY_STATUS
-            | DesiredAccess.SERVICE_START
-            | DesiredAccess.SERVICE_STOP
-            | DesiredAccess.DELETE
+                DesiredAccess.SERVICE_QUERY_STATUS
+                | DesiredAccess.SERVICE_START
+                | DesiredAccess.SERVICE_STOP
+                | DesiredAccess.DELETE
         )
         try:
             log.info("Opening handle for Service %s" % self.name)
@@ -610,12 +610,12 @@ class SCMRApi:
         services_returned = struct.unpack("<i", data[-12:-8])[0]
         offset = 4
         for i in range(0, services_returned):
-            name_offset = struct.unpack("<i", data[offset : 4 + offset])[0]
-            disp_offset = struct.unpack("<i", data[4 + offset : 8 + offset])[0]
+            name_offset = struct.unpack("<i", data[offset: 4 + offset])[0]
+            disp_offset = struct.unpack("<i", data[4 + offset: 8 + offset])[0]
             service_status = ServiceStatus()
-            service_name = extract_unicode(data[name_offset + 4 :])
-            display_name = extract_unicode(data[disp_offset + 4 :])
-            service_status.unpack(data[offset + 8 :])
+            service_name = extract_unicode(data[name_offset + 4:])
+            display_name = extract_unicode(data[disp_offset + 4:])
+            service_status.unpack(data[offset + 8:])
 
             service_info = {
                 "display_name": display_name,
@@ -668,20 +668,20 @@ class SCMRApi:
         self._parse_error(return_code, "RStartServiceW")
 
     def create_service_w(
-        self,
-        server_handle,
-        service_name,
-        display_name,
-        desired_access,
-        service_type,
-        start_type,
-        error_control,
-        path,
-        load_order_group,
-        tag_id,
-        dependencies,
-        username,
-        password,
+            self,
+            server_handle,
+            service_name,
+            display_name,
+            desired_access,
+            service_type,
+            start_type,
+            error_control,
+            path,
+            load_order_group,
+            tag_id,
+            dependencies,
+            username,
+            password,
     ):
         # https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/6a8ca926-9477-4dd4-b766-692fab07227e
         opnum = 12

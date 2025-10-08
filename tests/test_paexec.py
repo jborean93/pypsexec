@@ -29,7 +29,7 @@ from pypsexec.paexec import (
 
 def test_paexec_out_stream():
     actual = b""
-    for data, offset in paexec_out_stream(4096):
+    for data, offset in paexec_out_stream(None, 4096):
         actual += data
 
     assert actual == pkgutil.get_data("pypsexec", "paexec.exe")

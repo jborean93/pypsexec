@@ -361,6 +361,8 @@ class TestServiceFunctional(object):
     def test_enumerate_services(self, session):
         scmr = SCMRApi(session)
         scmr.open()
+
+        scmr_handle = None
         try:
             scmr_handle = scmr.open_sc_manager_w(
                 session.connection.server_name,
@@ -393,6 +395,8 @@ class TestServiceFunctional(object):
     def test_enumerate_services_small_buffer(self, session):
         scmr = SCMRApi(session)
         scmr.open()
+
+        scmr_handle = None
         try:
             scmr_handle = scmr.open_sc_manager_w(
                 session.connection.server_name,

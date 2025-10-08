@@ -3,41 +3,15 @@
 # MIT License (see LICENSE or https://opensource.org/licenses/MIT)
 
 import os
-import pytest
-import sys
 import time
 
-from pypsexec.client import (
-    Client,
-)
-
-from pypsexec.exceptions import (
-    PAExecException,
-    PypsexecException,
-)
-
-from pypsexec.paexec import (
-    ProcessPriority,
-)
-
-from pypsexec.pipe import (
-    OutputPipe,
-)
-
-from pypsexec.scmr import (
-    EnumServiceState,
-    Service,
-    ServiceType,
-)
-
+import pytest
 from smbprotocol.connection import (
     NtStatus,
 )
-
 from smbprotocol.exceptions import (
     SMBResponseException,
 )
-
 from smbprotocol.open import (
     CreateDisposition,
     CreateOptions,
@@ -48,42 +22,55 @@ from smbprotocol.open import (
     Open,
     ShareAccess,
 )
-
 from smbprotocol.tree import (
     TreeConnect,
 )
 
-if sys.version[0] == "2":
-    from Queue import Queue
-else:
-    from queue import Queue
+from pypsexec.client import (
+    Client,
+)
+from pypsexec.exceptions import (
+    PAExecException,
+    PypsexecException,
+)
+from pypsexec.paexec import (
+    ProcessPriority,
+)
+from pypsexec.pipe import (
+    OutputPipe,
+)
+from pypsexec.scmr import (
+    EnumServiceState,
+    Service,
+    ServiceType,
+)
 
 
 class TestClient(object):
 
     def test_client_loads(self):
-        # a very basic test that ensure the file still loads
-        client = Client("server", "username", "password")
+        # A very basic test ensuring the file still loads
+        client = Client("server", username="username", password="password")
         assert client.server == "server"
         assert client.port == 445
         assert isinstance(client.pid, int)
-        assert isinstance(client.current_host, str)
+        assert isinstance(client.comp_name, str)
 
     def test_port_override(self):
-        client = Client("server", "username", "password", port=123)
+        client = Client("server", username="username", password="password", port=123)
         assert client.server == "server"
         assert client.port == 123
         assert isinstance(client.pid, int)
-        assert isinstance(client.current_host, str)
+        assert isinstance(client.comp_name, str)
 
     def test_encode_string(self):
-        client = Client("server", "username", "password")
+        client = Client("server", username="username", password="password")
         expected = "string".encode("utf-16-le")
         actual = client._encode_string("string")
         assert actual == expected
 
     def test_proc_both_elevated_and_limited_error(self):
-        client = Client("username", "password", "server")
+        client = Client("server", username="username", password="password")
         with pytest.raises(PypsexecException) as exc:
             client.run_executable("whoami", run_elevated=True, run_limited=True)
         assert (
@@ -92,7 +79,7 @@ class TestClient(object):
         )
 
     def test_proc_stdin_and_async(self):
-        client = Client("username", "password", "server")
+        client = Client("server", username="username", password="password")
         with pytest.raises(PypsexecException) as exc:
             client.run_executable("whoami", asynchronous=True, stdin=b"")
         assert (
@@ -101,7 +88,7 @@ class TestClient(object):
         )
 
     def test_proc_stdin_and_interactive(self):
-        client = Client("username", "password", "server")
+        client = Client("server", username="username", password="password")
         with pytest.raises(PypsexecException) as exc:
             client.run_executable("whoami", interactive=True, stdin=b"")
         assert (
@@ -354,14 +341,15 @@ class TestClientFunctional(object):
         assert int(actual_time) < 5
         assert actual[0] is None
         assert actual[1] is None
-        # this is the pid of the async process so don't know in advance so just
-        # make sure it isn't 0
+
+        # This is the pid of the async process, so we
+        # don't know in advance - make sure it isn't 0.
         assert actual[2] != 0
         time.sleep(1)
 
     @pytest.mark.parametrize("wow, expected", [(None, 8), (False, 8), (True, 4)])
     def test_process_architecture(self, wow, expected, client):
-        kwargs = {
+        kwargs: dict = {
             "arguments": "[System.IntPtr]::Size",
         }
         if wow is not None:
@@ -385,7 +373,7 @@ class TestClientFunctional(object):
         assert len(services) >= 1
         assert len(files) >= 1
 
-        # now create a client but don't cleanup afterwards
+        # Create a client but don't clean up afterward
         new_client = self._get_new_generic_client(client)
         new_client.connect()
         new_client.create_service()
@@ -463,7 +451,7 @@ class TestClientFunctional(object):
     def _get_new_generic_client(self, client):
         username = os.environ.get("PYPSEXEC_USERNAME", None)
         password = os.environ.get("PYPSEXEC_PASSWORD", None)
-        new_client = Client(client.server, username, password)
+        new_client = Client(client.server, username=username, password=password)
         new_client.pid = 1234
         new_client.current_host = "other-host"
         new_client.service_name = "PAExec-%d-%s" % (
