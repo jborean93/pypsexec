@@ -305,7 +305,11 @@ class Result(Structure):
         super(Result, self).__init__()
 
 
-class BindPDU(Structure):
+class PDU(Structure):
+    pass
+
+
+class BindPDU(PDU):
     """
     https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagtcjh_28
 
@@ -371,7 +375,7 @@ class BindPDU(Structure):
         return context_elems
 
 
-class BindAckPDU(Structure):
+class BindAckPDU(PDU):
     """
     https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagtcjh_28
 
@@ -441,7 +445,7 @@ class BindAckPDU(Structure):
         return 8 - mod if sec_addr_size > 8 else mod
 
 
-class BindNakPDU(Structure):
+class BindNakPDU(PDU):
     """
     https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
     rpcconn_bind_nak_hdr_t
@@ -481,7 +485,7 @@ class BindNakPDU(Structure):
         super(BindNakPDU, self).__init__()
 
 
-class FaultPDU(Structure):
+class FaultPDU(PDU):
     """
     https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
     rpcconn_fault_hdr_t
@@ -511,7 +515,7 @@ class FaultPDU(Structure):
         super(FaultPDU, self).__init__()
 
 
-class RequestPDU(Structure):
+class RequestPDU(PDU):
     """
     rpcconn_request_hdr_t
     """
@@ -562,7 +566,7 @@ class RequestPDU(Structure):
         return total_size - fixed_size - object_size - auth_size
 
 
-class ResponsePDU(Structure):
+class ResponsePDU(PDU):
     """
     rpcconn_response_hdr_t
     """

@@ -402,8 +402,7 @@ class TestClientFunctional(object):
         password = os.environ.get("PYPSEXEC_PASSWORD", None)
         paexec_services = []
 
-        # need to close and reopen the connection to ensure deletes are
-        # processed
+        # need to close and reopen the connection to ensure deletes are processed
         client.disconnect()
         client = Client(server, username=username, password=password)
         client.connect()

@@ -162,6 +162,12 @@ class InputPipe:
         log.info("Closing Input Named Pipe: %s" % self.name)
         self.pipe.close(get_attributes=False)
 
+    def __enter__(self) -> "InputPipe":
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
 
 class OutputPipe(threading.Thread, metaclass=ABCMeta):
 
@@ -269,6 +275,13 @@ class OutputPipe(threading.Thread, metaclass=ABCMeta):
                 "Timeout while waiting for pipe thread to close: %s" % self.name,
                 TheadCloseTimeoutWarning,
             )
+
+    def __enter__(self) -> "OutputPipe":
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
 
 class OutputPipeBytes(OutputPipe):

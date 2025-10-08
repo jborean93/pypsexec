@@ -317,6 +317,36 @@ class Client:
             file_name = file["file_name"].get_value().decode("utf-16-le")
             self._delete_file(smb_tree, file_name)
 
+    def _open_main_pipe(self, smb_tree: TreeConnect, attempts: int = 3, backoff: float = 5.0) -> Open:
+        # write the settings to the main PAExec pipe
+        pipe_access_mask: int = (
+            FilePipePrinterAccessMask.GENERIC_READ
+            | FilePipePrinterAccessMask.GENERIC_WRITE
+            | FilePipePrinterAccessMask.FILE_APPEND_DATA
+            | FilePipePrinterAccessMask.READ_CONTROL
+            | FilePipePrinterAccessMask.SYNCHRONIZE
+        )
+
+        for i in range(1, attempts + 1):
+            try:
+                return open_pipe(smb_tree, self._exe_file, pipe_access_mask)
+            except SMBResponseException as exc:
+                if exc.status != NtStatus.STATUS_OBJECT_NAME_NOT_FOUND:
+                    raise exc
+
+                if i == attempts:
+                    break
+
+                log.warning(
+                    "Main pipe %s does not exist yet on attempt %d. "
+                    "Trying again in %.2f seconds", self._exe_file, i, backoff
+                )
+                time.sleep(backoff)
+
+        raise PypsexecException(
+            f"Failed to open main PAExec pipe {self._exe_file}, no more attempts remaining"
+        )
+
     def run_executable(
         self,
         executable,
@@ -409,19 +439,18 @@ class Client:
         """
         if run_elevated and run_limited:
             raise PypsexecException(
-                "Both run_elevated and run_limited are "
-                "set, only 1 of these can be true"
+                "Both run_elevated and run_limited are set, only 1 of these can be true"
             )
         if stdin is not None and (asynchronous or interactive):
             raise PypsexecException(
-                "Cannot send stdin data on an interactive " "or asynchronous process"
+                "Cannot send stdin data on an interactive or asynchronous process"
             )
 
         log.debug("Making sure PAExec service is running")
         self._service.start()
 
-        smb_tree = TreeConnect(self.session, r"\\%s\IPC$" % self.connection.server_name)
-        log.info("Connecting to SMB Tree %s" % smb_tree.share_name)
+        smb_tree: TreeConnect = TreeConnect(self.session, r"\\%s\IPC$" % self.connection.server_name)
+        log.info("Connecting to SMB Tree %s", smb_tree.share_name)
         smb_tree.connect()
 
         settings = PAExecSettingsBuffer()
@@ -449,34 +478,10 @@ class Client:
         input_data["buffer"] = settings
 
         # write the settings to the main PAExec pipe
-        pipe_access_mask = (
-            FilePipePrinterAccessMask.GENERIC_READ
-            | FilePipePrinterAccessMask.GENERIC_WRITE
-            | FilePipePrinterAccessMask.FILE_APPEND_DATA
-            | FilePipePrinterAccessMask.READ_CONTROL
-            | FilePipePrinterAccessMask.SYNCHRONIZE
-        )
-        for i in range(0, 3):
-            try:
-                main_pipe = open_pipe(smb_tree, self._exe_file, pipe_access_mask)
-            except SMBResponseException as exc:
-                if exc.status != NtStatus.STATUS_OBJECT_NAME_NOT_FOUND:
-                    raise exc
-                elif i == 2:
-                    raise PypsexecException(
-                        "Failed to open main PAExec pipe "
-                        "%s, no more attempts remaining" % self._exe_file
-                    )
-                log.warning(
-                    "Main pipe %s does not exist yet on attempt %d. "
-                    "Trying again in 5 seconds" % (self._exe_file, i + 1)
-                )
-                time.sleep(5)
-            else:
-                break
+        main_pipe: Open = self._open_main_pipe(smb_tree)
 
         log.info("Writing PAExecSettingsMsg to the main PAExec pipe")
-        log.info(str(input_data))
+        log.info("%s", input_data)
         main_pipe.write(input_data.pack(), 0)
 
         log.info("Reading PAExecMsg from the PAExec pipe")
@@ -499,66 +504,60 @@ class Client:
         log.info(
             "Writing PAExecMsg with PAExecStartBuffer to start the " "remote process"
         )
-        log.debug(str(start_msg))
+        log.debug("%s", start_msg)
         main_pipe.write(start_msg.pack(), 0)
 
         if not interactive and not asynchronous:
-            # create a pipe for stdout, stderr, and stdin and run in a separate
-            # thread
             log.info("Connecting to remote pipes to retrieve output")
-            stdout_pipe = stdout(smb_tree, self._stdout_pipe_name)
-            stdout_pipe.start()
-            stderr_pipe = stderr(smb_tree, self._stderr_pipe_name)
-            stderr_pipe.start()
-            stdin_pipe = InputPipe(smb_tree, self._stdin_pipe_name)
 
-            # wait until the stdout and stderr pipes have sent their first
-            # response
-            log.debug("Waiting for stdout pipe to send first request")
-            while not stdout_pipe.sent_first:
-                pass
-            log.debug("Waiting for stderr pipe to send first request")
-            while not stderr_pipe.sent_first:
-                pass
+            # create a pipe for stdout, stderr, and stdin and run in a separate thread
+            with (
+                stdout(smb_tree, self._stdout_pipe_name) as stdout_pipe,
+                stderr(smb_tree, self._stderr_pipe_name) as stderr_pipe,
+                InputPipe(smb_tree, self._stdin_pipe_name) as stdin_pipe
+            ):
+                # wait until the stdout and stderr pipes have sent their first
+                # response
+                log.debug("Waiting for stdout pipe to send first request")
+                while not stdout_pipe.sent_first:
+                    pass
+                log.debug("Waiting for stderr pipe to send first request")
+                while not stderr_pipe.sent_first:
+                    pass
 
-            # send any input if there was any
-            try:
-                if stdin and isinstance(stdin, bytes):
-                    log.info(
-                        "Sending stdin bytes over stdin pipe: %s"
-                        % self._stdin_pipe_name
-                    )
-                    stdin_pipe.write(stdin)
-                elif stdin:
-                    log.info(
-                        "Sending stdin generator bytes over stdin pipe: "
-                        "%s" % self._stdin_pipe_name
-                    )
-                    for stdin_data in stdin():
-                        stdin_pipe.write(stdin_data)
-            except SMBResponseException as exc:
-                # if it fails with a STATUS_PIPE_BROKEN exception, continue as
-                # the actual error will be in the response (process failed)
-                if exc.status != NtStatus.STATUS_PIPE_BROKEN:
-                    raise exc
-                log.warning("Failed to send data through stdin: %s" % str(exc))
+                # send any input if there was any
+                try:
+                    if stdin and isinstance(stdin, bytes):
+                        log.info(
+                            "Sending stdin bytes over stdin pipe: %s"
+                            % self._stdin_pipe_name
+                        )
+                        stdin_pipe.write(stdin)
+                    elif stdin:
+                        log.info(
+                            "Sending stdin generator bytes over stdin pipe: "
+                            "%s" % self._stdin_pipe_name
+                        )
+                        for stdin_data in stdin():
+                            stdin_pipe.write(stdin_data)
+                except SMBResponseException as exc:
+                    # if it fails with a STATUS_PIPE_BROKEN exception, continue as
+                    # the actual error will be in the response (process failed)
+                    if exc.status != NtStatus.STATUS_PIPE_BROKEN:
+                        raise exc
+                    log.warning("Failed to send data through stdin: %s" % str(exc))
 
-        # read the final response from the process
-        log.info("Reading result of PAExec process")
-        exe_result_raw = main_pipe.read(0, 1024)
-        log.info("Results read of PAExec process")
-
-        if not interactive and not asynchronous:
-            log.info("Closing PAExec std* pipes")
-            stdout_pipe.close()
-            stderr_pipe.close()
-            stdin_pipe.close()
-            log.info("Gettings stdout and stderr from pipe buffer queue")
+            log.info("Getting stdout and stderr from pipe buffer queue")
             stdout_out = stdout_pipe.get_output()
             stderr_bytes = stderr_pipe.get_output()
         else:
             stdout_out = None
             stderr_bytes = None
+
+        # read the final response from the process
+        log.info("Reading result of PAExec process")
+        exe_result_raw = main_pipe.read(0, 1024)
+        log.info("Results read of PAExec process")
 
         log.info("Closing main PAExec pipe")
         main_pipe.close()

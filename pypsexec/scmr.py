@@ -18,6 +18,10 @@ from smbprotocol.exceptions import (
     SMBResponseException,
 )
 
+from smbprotocol.session import (
+    Session,
+)
+
 from smbprotocol.ioctl import (
     CtlCode,
     IOCTLFlags,
@@ -60,8 +64,9 @@ from pypsexec.rpc import (
     PFlags,
     RequestPDU,
     ResponsePDU,
-    SyntaxIdElement,
+    SyntaxIdElement, PDU,
 )
+
 
 log = logging.getLogger(__name__)
 
@@ -198,7 +203,7 @@ class EnumServiceState:
     SERVICE_STATE_ALL = 0x00000003
 
 
-class ScmrReturnValues:
+class SCMRReturnValues:
     # The return values an RPC request can return
     ERROR_SUCCESS = 0
     ERROR_SUCCESS_NOTIFY_CHANGED = 0xFE75FFFF
@@ -264,28 +269,28 @@ class ServiceStatus(Structure):
 
 class Service:
 
-    def __init__(self, name, smb_session):
+    def __init__(self, name: str, smb_session: Session):
         """
         Higher-level interface over SCMR to manage Windows services. This is
         customized for the PAExec service to really just be used in that
         scenario.
 
-        :param name: The name of the service
+        :param name: Name of the service.
         :param smb_session: A connected SMB Session that can be used to connect
             to the IPC$ tree.
         """
-        self.name = name
-        self.smb_session = smb_session
+        self.name: str = name
+        self.smb_session: Session = smb_session
 
         self._handle = None
         self.scmr = None
         self.scmr_handle = None
 
-    def open(self):
+    def open(self) -> None:
         if self.scmr:
             log.debug(
-                "Handle for SCMR on %s is already open"
-                % self.smb_session.connection.server_name
+                "Handle for SCMR on %s is already open",
+                self.smb_session.connection.server_name
             )
             return
 
@@ -329,7 +334,7 @@ class Service:
         try:
             self.scmr.start_service_w(self._handle)
         except SCMRException as exc:
-            if exc.return_code != ScmrReturnValues.ERROR_SERVICE_ALREADY_RUNNING:
+            if exc.return_code != SCMRReturnValues.ERROR_SERVICE_ALREADY_RUNNING:
                 raise exc
 
     def stop(self):
@@ -342,7 +347,7 @@ class Service:
         try:
             self.scmr.control_service(self._handle, ControlCode.SERVICE_CONTROL_STOP)
         except SCMRException as exc:
-            if exc.return_code != ScmrReturnValues.ERROR_SERVICE_NOT_ACTIVE:
+            if exc.return_code != SCMRReturnValues.ERROR_SERVICE_NOT_ACTIVE:
                 raise exc
 
     def create(self, path):
@@ -389,18 +394,20 @@ class Service:
                 | DesiredAccess.DELETE
         )
         try:
-            log.info("Opening handle for Service %s" % self.name)
+            log.info("Opening handle for Service %s", self.name)
             self._handle = self.scmr.open_service_w(
                 self.scmr_handle, self.name, desired_access
             )
         except SCMRException as exc:
-            if exc.return_code != ScmrReturnValues.ERROR_SERVICE_DOES_NOT_EXIST:
+            if exc.return_code != SCMRReturnValues.ERROR_SERVICE_DOES_NOT_EXIST:
                 raise exc
             else:
                 log.debug(
                     "Could not open handle for service %s as it did "
                     "not exist" % self.name
                 )
+
+        return self._handle
 
 
 class SCMRApi:
@@ -752,24 +759,24 @@ class SCMRApi:
         return pdu_resp
 
     def _parse_pdu(self, data, opnum):
-        pdu_resp = parse_pdu(data)
+        pdu_resp: PDU = parse_pdu(data)
         if not isinstance(pdu_resp, ResponsePDU):
             raise PDUException(
-                "Expecting ResponsePDU for opnum %d response "
-                "but got: %s" % (opnum, str(pdu_resp))
+                f"Expecting ResponsePDU for opnum {opnum} response but got: {pdu_resp}"
             )
+
         return pdu_resp["stub_data"].get_value()
 
-    def _parse_error(self, return_code, function_name):
-        error_string = "ERROR_UNKNOWN"
-        for error_name, error_val in vars(ScmrReturnValues).items():
+    def _parse_error(self, return_code, function_name) -> None:
+        error_string: str = "ERROR_UNKNOWN"
+        for error_name, error_val in vars(SCMRReturnValues).items():
             if isinstance(error_val, int) and error_val == return_code:
                 error_string = error_name
                 break
         if not error_string.startswith("ERROR_SUCCESS"):
             raise SCMRException(function_name, return_code, error_string)
 
-    def _marshal_string(self, string, unique=False):
+    def _marshal_string(self, string, unique=False) -> bytes:
         """
         Strings are encoding as a UTF-16-LE byte structure and are marshaled
         in a particular format to send over RPC. The format is as follows
