@@ -28,7 +28,7 @@ from pypsexec.exceptions import PAExecException
 def out_stream(data: Union[bytearray, bytes], buffer_size: int = 4096):
     byte_count = len(data)
     for i in range(0, byte_count, buffer_size):
-        yield data[i: i + buffer_size], i
+        yield data[i : i + buffer_size], i
 
 
 def paexec_out_stream(path: Optional[str] = None, buffer_size: int = 4096):
@@ -76,6 +76,7 @@ def get_unique_id(pid: int, computer_name: str) -> int:
     return pid ^ struct.unpack("<L", comp_name)[0]
 
 
+# pylint: disable=too-few-public-methods
 class PAExecMsgId:
     """
     https://github.com/poweradminllc/PAExec/blob/master/stdafx.h#L52-L57
@@ -91,6 +92,7 @@ class PAExecMsgId:
     MSGID_FAILED = 6
 
 
+# pylint: disable=too-few-public-methods
 class ProcessPriority:
     """
     https://msdn.microsoft.com/en-us/library/windows/desktop/ms683211(v=vs.85).aspx
@@ -125,7 +127,7 @@ class PAExecMsg(Structure):
                 ("buffer", BytesField(size=lambda s: s["buffer_length"].get_value())),
             ]
         )
-        super(PAExecMsg, self).__init__()
+        super().__init__()
 
     def check_resp(self):
         msg_id = self["msg_id"].get_value()
@@ -166,7 +168,7 @@ class PAExecSettingsMsg(Structure):
                 ("buffer", StructureField(structure_type=PAExecSettingsBuffer)),
             ]
         )
-        super(PAExecSettingsMsg, self).__init__()
+        super().__init__()
 
     def pack(self):
         # need to xor the buffer as expected by PAExec
@@ -174,7 +176,7 @@ class PAExecSettingsMsg(Structure):
 
         # the id, length and buffer itself is xor'd
         input_data = (
-                self["unique_id"].pack() + self["buffer_len"].pack() + self["buffer"].pack()
+            self["unique_id"].pack() + self["buffer_len"].pack() + self["buffer"].pack()
         )
         buffer = self._xor_data(xor_value, input_data)
 
@@ -212,7 +214,7 @@ class PAExecSettingsMsg(Structure):
             xored_value = int_value ^ xor_value
             new_bytes = struct.pack("<L", xored_value)
             buffer += new_bytes[:1]
-            next_bytes = new_bytes[1:] + data[i + 4: i + 5]
+            next_bytes = new_bytes[1:] + data[i + 4 : i + 5]
             xor_value += 3
 
         int_value = struct.unpack("<L", next_bytes)[0]
@@ -374,12 +376,12 @@ class PAExecSettingsBuffer(Structure):
                 ("timeout_seconds", IntField(size=4)),
             ]
         )
-        super(PAExecSettingsBuffer, self).__init__()
+        super().__init__()
 
     def _unpack_file_list(self, structure, data, len_field):
         files = []
         remaining_data = data
-        for i in range(0, structure[len_field].get_value()):
+        for _ in range(0, structure[len_field].get_value()):
             file_structure, remaining_data = self._get_file(remaining_data)
             files.append(file_structure)
         return files
@@ -422,7 +424,7 @@ class PAExecFileInfo(Structure):
                 ("copy_file", BoolField(size=1)),
             ]
         )
-        super(PAExecFileInfo, self).__init__()
+        super().__init__()
 
 
 class PAExecStartBuffer(Structure):
@@ -450,7 +452,7 @@ class PAExecStartBuffer(Structure):
                 ),
             ]
         )
-        super(PAExecStartBuffer, self).__init__()
+        super().__init__()
 
 
 class PAExecReturnBuffer(Structure):
@@ -462,4 +464,4 @@ class PAExecReturnBuffer(Structure):
 
     def __init__(self):
         self.fields = OrderedDict([("return_code", IntField(size=4))])
-        super(PAExecReturnBuffer, self).__init__()
+        super().__init__()

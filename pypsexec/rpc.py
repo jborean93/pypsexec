@@ -44,11 +44,12 @@ def parse_pdu(data):
 
     pdu = known_types.get(pdu_type, None)
     if not pdu:
-        raise PDUException("Cannot parse PDU of type %s" % pdu_type)
+        raise PDUException(f"Cannot parse PDU of type {pdu_type}")
     pdu.unpack(data)
     return pdu
 
 
+# pylint: disable=too-few-public-methods
 class PFlags:
     """
     https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagtcjh_28
@@ -235,7 +236,7 @@ class DataRepresentationFormat(Structure):
                 ("reserved2", IntField(size=1)),
             ]
         )
-        super(DataRepresentationFormat, self).__init__()
+        super().__init__()
 
 
 class SyntaxIdElement(Structure):
@@ -248,7 +249,7 @@ class SyntaxIdElement(Structure):
         self.fields = OrderedDict(
             [("uuid", UuidField(little_endian=False)), ("version", IntField(size=4))]
         )
-        super(SyntaxIdElement, self).__init__()
+        super().__init__()
 
 
 class ContextElement(Structure):
@@ -282,7 +283,7 @@ class ContextElement(Structure):
                 ),
             ]
         )
-        super(ContextElement, self).__init__()
+        super().__init__()
 
 
 class Result(Structure):
@@ -302,7 +303,7 @@ class Result(Structure):
                 ),
             ]
         )
-        super(Result, self).__init__()
+        super().__init__()
 
 
 class PDU(Structure):
@@ -319,6 +320,9 @@ class BindPDU(PDU):
     """
 
     def __init__(self):
+        # The lambdas look unnecessary; however, smbprotocol explicitly
+        # checks for a lambda rather than a generic callable.
+        # pylint: disable=unnecessary-lambda
         self.fields = OrderedDict(
             [
                 ("rpc_vers", IntField(size=1, default=5)),
@@ -361,7 +365,7 @@ class BindPDU(PDU):
                 ),
             ]
         )
-        super(BindPDU, self).__init__()
+        super().__init__()
 
     def _unpack_context_elems(self, structure, data):
         del structure
@@ -384,6 +388,9 @@ class BindAckPDU(PDU):
     """
 
     def __init__(self):
+        # The lambdas look unnecessary; however, smbprotocol explicitly
+        # checks for a lambda rather than a generic callable.
+        # pylint: disable=unnecessary-lambda
         self.fields = OrderedDict(
             [
                 ("rpc_vers", IntField(size=1, default=5)),
@@ -436,7 +443,7 @@ class BindAckPDU(PDU):
                 ),
             ]
         )
-        super(BindAckPDU, self).__init__()
+        super().__init__()
 
     def _pad2_size(self, structure):
         sec_addr_size = 2 + len(structure["sec_addr"])
@@ -452,6 +459,9 @@ class BindNakPDU(PDU):
     """
 
     def __init__(self):
+        # The lambdas look unnecessary; however, smbprotocol explicitly
+        # checks for a lambda rather than a generic callable.
+        # pylint: disable=unnecessary-lambda
         self.fields = OrderedDict(
             [
                 ("rpc_vers", IntField(size=1, default=5)),
@@ -482,7 +492,7 @@ class BindNakPDU(PDU):
                 ),
             ]
         )
-        super(BindNakPDU, self).__init__()
+        super().__init__()
 
 
 class FaultPDU(PDU):
@@ -492,6 +502,9 @@ class FaultPDU(PDU):
     """
 
     def __init__(self):
+        # The lambdas look unnecessary; however, smbprotocol explicitly
+        # checks for a lambda rather than a generic callable.
+        # pylint: disable=unnecessary-lambda
         self.fields = OrderedDict(
             [
                 ("rpc_vers", IntField(size=1, default=5)),
@@ -512,7 +525,7 @@ class FaultPDU(PDU):
                 ("status", EnumField(size=4, enum_type=FaultStatus, enum_strict=False)),
             ]
         )
-        super(FaultPDU, self).__init__()
+        super().__init__()
 
 
 class RequestPDU(PDU):
@@ -521,6 +534,9 @@ class RequestPDU(PDU):
     """
 
     def __init__(self):
+        # The lambdas look unnecessary; however, smbprotocol explicitly
+        # checks for a lambda rather than a generic callable.
+        # pylint: disable=unnecessary-lambda
         self.fields = OrderedDict(
             [
                 ("rpc_vers", IntField(size=1, default=5)),
@@ -555,7 +571,7 @@ class RequestPDU(PDU):
                 ),
             ]
         )
-        super(RequestPDU, self).__init__()
+        super().__init__()
 
     def _get_stub_data_size(self, structure):
         total_size = structure["frag_length"].get_value()
@@ -572,6 +588,9 @@ class ResponsePDU(PDU):
     """
 
     def __init__(self):
+        # The lambdas look unnecessary; however, smbprotocol explicitly
+        # checks for a lambda rather than a generic callable.
+        # pylint: disable=unnecessary-lambda
         self.fields = OrderedDict(
             [
                 ("rpc_vers", IntField(size=1, default=5)),
@@ -599,7 +618,7 @@ class ResponsePDU(PDU):
                 ),
             ]
         )
-        super(ResponsePDU, self).__init__()
+        super().__init__()
 
     def _get_stub_data_size(self, structure):
         total_size = structure["frag_length"].get_value()

@@ -69,8 +69,10 @@ from pypsexec.scmr import (
 log = logging.getLogger(__name__)
 
 
+# pylint: disable=too-many-instance-attributes
 class Client:
 
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         server: str,
@@ -119,7 +121,7 @@ class Client:
         )
 
         self.service_name: str = self._generate_service_name()
-        self._exe_file = exe_file or "%s.exe" % self.service_name
+        self._exe_file = exe_file or f"{self.service_name}.exe"
         self._stdout_pipe_name, self._stderr_pipe_name, self._stdin_pipe_name = (
             self._generate_pipe_names()
         )
@@ -148,15 +150,15 @@ class Client:
         )
 
     def _generate_service_name(self) -> str:
-        return "PAExec-%d-%s" % (self.pid, self.comp_name)
+        return f"PAExec-{self.pid}-{self.comp_name}"
 
     def _generate_pipe_names(self) -> Tuple[str, str, str]:
-        placeholder_values: Tuple[str, int] = (self.comp_name, self.pid)
+        placeholder_values: str = f"{self.comp_name}{self.pid}"
 
         return (
-            "PaExecOut%s%d" % placeholder_values,
-            "PaExecErr%s%d" % placeholder_values,
-            "PaExecIn%s%d" % placeholder_values,
+            f"PaExecOut{placeholder_values}",
+            f"PaExecErr{placeholder_values}",
+            f"PaExecIn{placeholder_values}",
         )
 
     def _generate_unique_id(self) -> int:
@@ -195,10 +197,8 @@ class Client:
         self._service.delete()
 
         # copy across the PAExec payload to C:\Windows\
-        smb_tree = TreeConnect(
-            self.session, r"\\%s\ADMIN$" % self.connection.server_name
-        )
-        log.info("Connecting to SMB Tree %s" % smb_tree.share_name)
+        smb_tree = TreeConnect(self.session, rf"\\{self.connection.server_name}\ADMIN$")
+        log.info("Connecting to SMB Tree %s", smb_tree.share_name)
         smb_tree.connect()
         paexec_file = Open(smb_tree, self._exe_file)
         log.debug("Creating open to PAExec file")
@@ -211,8 +211,7 @@ class Client:
             CreateOptions.FILE_NON_DIRECTORY_FILE,
         )
         log.info(
-            "Creating PAExec executable at %s\\%s"
-            % (smb_tree.share_name, self._exe_file)
+            "Creating PAExec executable at %s\\%s", smb_tree.share_name, self._exe_file
         )
         for data, o in paexec_out_stream(
             self.paexec_path, self.connection.max_write_size
@@ -220,12 +219,12 @@ class Client:
             paexec_file.write(data, o)
         log.debug("Closing open to PAExec file")
         paexec_file.close(False)
-        log.info("Disconnecting from SMB Tree %s" % smb_tree.share_name)
+        log.info("Disconnecting from SMB Tree %s", smb_tree.share_name)
         smb_tree.disconnect()
 
         # create the PAExec service
-        service_path = r'"%SystemRoot%\{0}" -service'.format(self._exe_file)
-        log.info("Creating PAExec service %s" % self.service_name)
+        service_path = rf'"%SystemRoot%\{self._exe_file}" -service'
+        log.info("Creating PAExec service %s", self.service_name)
         self._service.create(service_path)
 
     def remove_service(self):
@@ -239,14 +238,12 @@ class Client:
         self._service.delete()
 
         # delete the PAExec executable
-        smb_tree = TreeConnect(
-            self.session, r"\\%s\ADMIN$" % self.connection.server_name
-        )
-        log.info("Connecting to SMB Tree %s" % smb_tree.share_name)
+        smb_tree = TreeConnect(self.session, rf"\\{self.connection.server_name}\ADMIN$")
+        log.info("Connecting to SMB Tree %s", smb_tree.share_name)
         smb_tree.connect()
         log.info("Creating open to PAExec file with delete on close flags")
         self._delete_file(smb_tree, self._exe_file)
-        log.info("Disconnecting from SMB Tree %s" % smb_tree.share_name)
+        log.info("Disconnecting from SMB Tree %s", smb_tree.share_name)
         smb_tree.disconnect()
 
     def cleanup(self):
@@ -271,9 +268,7 @@ class Client:
                 svc.open()
                 svc.delete()
 
-        smb_tree = TreeConnect(
-            self.session, r"\\%s\ADMIN$" % self.connection.server_name
-        )
+        smb_tree = TreeConnect(self.session, rf"\\{self.connection.server_name}\ADMIN$")
         smb_tree.connect()
 
         share = Open(smb_tree, "")
@@ -455,7 +450,7 @@ class Client:
         self._service.start()
 
         smb_tree: TreeConnect = TreeConnect(
-            self.session, r"\\%s\IPC$" % self.connection.server_name
+            self.session, rf"\\{self.connection.server_name}\IPC$"
         )
         log.info("Connecting to SMB Tree %s", smb_tree.share_name)
         smb_tree.connect()
@@ -508,9 +503,7 @@ class Client:
         start_buffer["comp_name"] = self.comp_name.encode("utf-16-le")
         start_msg["buffer"] = start_buffer
 
-        log.info(
-            "Writing PAExecMsg with PAExecStartBuffer to start the " "remote process"
-        )
+        log.info("Writing PAExecMsg with PAExecStartBuffer to start the remote process")
         log.debug("%s", start_msg)
         main_pipe.write(start_msg.pack(), 0)
 
@@ -534,14 +527,14 @@ class Client:
                 try:
                     if stdin and isinstance(stdin, bytes):
                         log.info(
-                            "Sending stdin bytes over stdin pipe: %s"
-                            % self._stdin_pipe_name
+                            "Sending stdin bytes over stdin pipe: %s",
+                            self._stdin_pipe_name,
                         )
                         stdin_pipe.write(stdin)
                     elif stdin:
                         log.info(
-                            "Sending stdin generator bytes over stdin pipe: "
-                            "%s" % self._stdin_pipe_name
+                            "Sending stdin generator bytes over stdin pipe: %s",
+                            self._stdin_pipe_name,
                         )
                         for stdin_data in stdin():
                             stdin_pipe.write(stdin_data)
@@ -550,14 +543,14 @@ class Client:
                     # the actual error will be in the response (process failed)
                     if exc.status != NtStatus.STATUS_PIPE_BROKEN:
                         raise exc
-                    log.warning("Failed to send data through stdin: %s" % str(exc))
+                    log.warning("Failed to send data through stdin: %s", exc)
 
             log.info("Getting stdout and stderr from pipe buffer queue")
-            stdout_out = stdout_pipe.get_output()
-            stderr_bytes = stderr_pipe.get_output()
+            stdout_out: Optional[bytes] = stdout_pipe.get_output()
+            stderr_bytes: Optional[bytes] = stderr_pipe.get_output()
         else:
-            stdout_out = None
-            stderr_bytes = None
+            stdout_out: Optional[bytes] = None
+            stderr_bytes: Optional[bytes] = None
 
         # read the final response from the process
         log.info("Reading result of PAExec process")
@@ -566,22 +559,22 @@ class Client:
 
         log.info("Closing main PAExec pipe")
         main_pipe.close()
-        log.info("Disconnecting from SMB Tree %s" % smb_tree.share_name)
+        log.info("Disconnecting from SMB Tree %s", smb_tree.share_name)
         smb_tree.disconnect()
 
         log.info("Unpacking PAExecMsg data from process result")
         exe_result = PAExecMsg()
         exe_result.unpack(exe_result_raw)
-        log.debug(str(exe_result))
+        log.debug("%s", exe_result)
         exe_result.check_resp()
         log.debug("Unpacking PAExecReturnBuffer from main PAExecMsg")
         rc = PAExecReturnBuffer()
         rc.unpack(exe_result["buffer"].get_value())
-        log.debug(str(rc))
+        log.debug("%s", rc)
 
         return_code = rc["return_code"].get_value()
-        log.info("Process finished with exit code: %d" % return_code)
-        log.debug("RC: %d" % return_code)
+        log.info("Process finished with exit code: %d", return_code)
+        log.debug("RC: %d", return_code)
         return stdout_out, stderr_bytes, return_code
 
     def _encode_string(self, string) -> Optional[str]:
