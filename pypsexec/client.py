@@ -72,7 +72,7 @@ log = logging.getLogger(__name__)
 # pylint: disable=too-many-instance-attributes
 class Client:
 
-    # pylint: disable=too-many-arguments,too-many-positional-arguments
+    # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
     def __init__(
         self,
         server: str,

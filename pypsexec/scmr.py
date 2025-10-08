@@ -412,7 +412,7 @@ class Service:
                 raise exc
 
             log.debug(
-                "Could not open handle for service %s as it did " "not exist", self.name
+                "Could not open handle for service %s as it did not exist", self.name
             )
 
         return self._handle

@@ -215,12 +215,12 @@ class OutputPipe(threading.Thread, metaclass=ABCMeta):
                 self.sent_first = True
                 try:
                     log.debug(
-                        "Reading SMB Read response for Output Named " "Pipe: %s",
+                        "Reading SMB Read response for Output Named Pipe: %s",
                         self.name,
                     )
                     pipe_out = read_resp_func(request)
                     log.debug(
-                        "Received SMB Read response for Output Named " "Pipe: %s",
+                        "Received SMB Read response for Output Named Pipe: %s",
                         self.name,
                     )
                     self.handle_output(pipe_out)
