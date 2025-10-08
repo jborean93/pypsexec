@@ -8,9 +8,8 @@ import socket
 import time
 import uuid
 from types import TracebackType
-from typing import Optional, List, Tuple, Type, Generator, Callable
+from typing import Optional, List, Tuple, Type, Generator, Callable, Union
 
-from black.comments import Union
 
 try:
     from typing import Literal
