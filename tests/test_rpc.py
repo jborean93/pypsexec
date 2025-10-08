@@ -494,21 +494,20 @@ class TestBindNakPDU(object):
 
     def test_parse_message(self):
         actual = BindNakPDU()
-        # TODO: This seems to have no effect?
-        # data = (
-        #     b"\x05"
-        #     b"\x00"
-        #     b"\x0d"
-        #     b"\x00"
-        #     b"\x10\x00\x00\x00"
-        #     b"\x15\x00"
-        #     b"\x00\x00"
-        #     b"\x04\x00\x00\x00"
-        #     b"\x02\x00"
-        #     b"\x01"
-        #     b"\x05\x00"
-        # )
-        # data = actual.unpack(data)
+        data = (
+            b"\x05"
+            b"\x00"
+            b"\x0d"
+            b"\x00"
+            b"\x10\x00\x00\x00"
+            b"\x15\x00"
+            b"\x00\x00"
+            b"\x04\x00\x00\x00"
+            b"\x02\x00"
+            b"\x01"
+            b"\x05\x00"
+        )
+        data = actual.unpack(data)
         assert len(actual) == 21
         assert actual["rpc_vers"].get_value() == 5
         assert actual["rpc_vers_minor"].get_value() == 0
