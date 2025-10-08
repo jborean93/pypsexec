@@ -8,7 +8,8 @@ import socket
 import time
 import uuid
 from types import TracebackType
-from typing import Optional, Literal, List, Tuple
+from typing import Optional, List, Tuple
+from typing_extensions import Literal
 
 from smbprotocol.connection import (
     Connection,
