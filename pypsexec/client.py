@@ -74,11 +74,12 @@ log = logging.getLogger(__name__)
 class Client(object):
 
     def __init__(self, server, username=None, password=None, port=445,
-                 encrypt=True):
+                 encrypt=True, client_pid=None, client_hostname=None):
         self.server = server
         self.port = port
-        self.pid = os.getpid()
-        self.current_host = socket.gethostname()
+        self.pid = os.getpid() if client_pid is None else client_pid
+        self.current_host = socket.gethostname() \
+            if client_hostname is None else client_hostname
         self.connection = Connection(uuid.uuid4(), server, port)
         self.session = Session(self.connection, username, password,
                                require_encryption=encrypt)
