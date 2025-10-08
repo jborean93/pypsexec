@@ -123,11 +123,15 @@ class Client:
         )
 
         self.service_name: str = self._generate_service_name()
+        log.info("Creating PyPsexec Client with unique name: %s", self.service_name)
+
         self._exe_file = exe_file or f"{self.service_name}.exe"
         self._stdout_pipe_name, self._stderr_pipe_name, self._stdin_pipe_name = (
             self._generate_pipe_names()
         )
+
         self._unique_id: int = self._generate_unique_id()
+        log.info("Generated unique ID for PyPsexec Client: %d", self._unique_id)
 
         self._service: scmr.Service = self._create_service()
 
@@ -178,6 +182,7 @@ class Client:
     ) -> None:
         # TODO: preferred_encryption_algos and preferred_signing_algos
         #   may be changed into an Iterable...to be verified.
+        log.info("Setting up SMB Connection to %s:%d", self.server, self.port)
         self.connection.connect(
             dialect=dialect or self.dialect,
             timeout=timeout or self.connection_timeout,
@@ -186,11 +191,18 @@ class Client:
             preferred_signing_algos=preferred_signing_algos
             or self.preferred_signing_algos,
         )
+
+        log.info("Authenticating SMB Session")
         self.session.connect()
+
+        log.info("Opening handle to SCMR and PAExec service")
         self._service.open()
 
     def disconnect(self) -> None:
+        log.info("Closing handle of PAExec service and SCMR")
         self._service.close()
+
+        log.info("Closing SMB Connection")
         self.connection.disconnect()
 
     def create_service(self):

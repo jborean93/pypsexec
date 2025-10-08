@@ -478,7 +478,7 @@ class SCMRApi:
 
         # https://msdn.microsoft.com/en-us/library/cc243715.aspx
         # uuid prefix = 6CB71C2C-9812-4540
-        # uuid prefix bytes = b'\x2c\x1c\xb7\x6c\x12\x98\x40\x45'
+        # uuid prefix bytes = b"\x2c\x1c\xb7\x6c\x12\x98\x40\x45"
         # BindTimeFeatureNegotiateBitmask
         # https://msdn.microsoft.com/en-us/library/cc243884.aspx
         # SecurityContextMultiplexingSupported = 0x01

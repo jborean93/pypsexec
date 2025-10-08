@@ -5,11 +5,10 @@
 import os
 import pkgutil
 import struct
-
 from collections import (
     OrderedDict,
 )
-from typing import Union, Optional
+from typing import Optional, Generator, Any, Tuple
 
 from smbprotocol.structure import (
     BoolField,
@@ -25,13 +24,26 @@ from smbprotocol.structure import (
 from .exceptions import PAExecException
 
 
-def out_stream(data: Union[bytearray, bytes], buffer_size: int = 4096):
+def out_stream(
+    data: bytes, buffer_size: int = 4096
+) -> Generator[Tuple[bytes, int], Any, None]:
+    """
+    Creates a generator chunking up `data` into
+    `buffer_size` bytes sequences.
+
+    :param data: Data to chunk.
+    :param buffer_size: Chunk size.
+    :return:  (bytes, offset) = the bytes and the offset of the byte string
+    """
+
     byte_count = len(data)
     for i in range(0, byte_count, buffer_size):
         yield data[i : i + buffer_size], i
 
 
-def paexec_out_stream(path: Optional[str] = None, buffer_size: int = 4096):
+def paexec_out_stream(
+    path: Optional[str] = None, buffer_size: int = 4096
+) -> Generator[Tuple[bytes, int], Any, None]:
     """
     Creates a generator to read the PAExec executable data as a
     byte stream. Currently, the version of the paexec.exe is at 1.27.
@@ -40,7 +52,7 @@ def paexec_out_stream(path: Optional[str] = None, buffer_size: int = 4096):
 
     :param path: Path to PAExec file
     :param buffer_size: The size of the buffer yielded
-    :return:  (bytes, offset) = the butes and the offset of the byte string
+    :return:  (bytes, offset) = the bytes and the offset of the byte string
     """
 
     if path:
