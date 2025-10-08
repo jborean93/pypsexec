@@ -22,7 +22,7 @@ from smbprotocol.structure import (
     DateTimeField,
 )
 
-from pypsexec.exceptions import PAExecException
+from .exceptions import PAExecException
 
 
 def out_stream(data: Union[bytearray, bytes], buffer_size: int = 4096):
@@ -72,7 +72,9 @@ def get_unique_id(pid: int, computer_name: str) -> int:
     :return: int of the unique ID derived from the PID and Computer Name
     """
     comp_name: bytes = computer_name.encode("utf-16-le")[:4]
-    comp_name = comp_name + (b"\x00" * (4 - len(comp_name)))
+    comp_name += b"\x00" * (4 - len(comp_name))
+
+    # noinspection PyTypeChecker
     return pid ^ struct.unpack("<L", comp_name)[0]
 
 

@@ -41,11 +41,11 @@ from smbprotocol.tree import (
     TreeConnect,
 )
 
-from pypsexec import scmr
-from pypsexec.exceptions import (
+from . import scmr
+from .exceptions import (
     PypsexecException,
 )
-from pypsexec.paexec import (
+from .paexec import (
     PAExecMsg,
     PAExecMsgId,
     PAExecReturnBuffer,
@@ -56,13 +56,13 @@ from pypsexec.paexec import (
     paexec_out_stream,
     get_unique_id,
 )
-from pypsexec.pipe import (
+from .pipe import (
     InputPipe,
     OutputPipeBytes,
     open_pipe,
     OutputPipe,
 )
-from pypsexec.scmr import (
+from .scmr import (
     EnumServiceState,
     Service,
     ServiceType,
@@ -331,7 +331,7 @@ class Client:
 
         for i in range(1, attempts + 1):
             try:
-                main_pipe = open_pipe(smb_tree, self._exe_file, pipe_access_mask)
+                main_pipe: Open = open_pipe(smb_tree, self._exe_file, pipe_access_mask)
                 try:
                     yield main_pipe
                 finally:

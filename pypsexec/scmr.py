@@ -9,6 +9,7 @@ import uuid
 from collections import (
     OrderedDict,
 )
+from typing import Optional
 
 from smbprotocol.connection import (
     NtStatus,
@@ -49,12 +50,12 @@ from smbprotocol.tree import (
     TreeConnect,
 )
 
-from pypsexec.exceptions import (
+from .exceptions import (
     PypsexecException,
     SCMRException,
 )
 
-from pypsexec.rpc import (
+from .rpc import (
     BindAckPDU,
     BindPDU,
     ContextElement,
@@ -642,11 +643,13 @@ class SCMRApi:
 
         return services
 
-    def open_sc_manager_w(self, machine_name, database_name, desired_access):
+    def open_sc_manager_w(
+        self, machine_name: str, database_name: Optional[str], desired_access: int
+    ):
         # https://msdn.microsoft.com/en-us/library/cc245942.aspx
-        opnum = 15
+        opnum: int = 15
 
-        data = self._marshal_string(machine_name, unique=True)
+        data: bytes = self._marshal_string(machine_name, unique=True)
         data += self._marshal_string(database_name)
         data += struct.pack("<i", desired_access)
 
@@ -675,6 +678,8 @@ class SCMRApi:
 
         data = service_handle
         data += struct.pack("<i", len(args))
+
+        # noinspection PyTypeChecker
         data += b"".join([self._marshal_string(arg) for arg in args])
         data += b"\x00" * 4  # terminate arg list
 
@@ -815,10 +820,14 @@ class SCMRApi:
         unicode_count = int(len(unicode_string) / 2)
         count = struct.pack("<i", unicode_count)
         offset = b"\x00" * 4
+
+        # noinspection PyTypeChecker
         str_bytes = referent + count + offset + count + unicode_string
 
         # each parameter needs to be aligned at a 4-byte boundary so get the
         # padding length if necessary
         mod = len(str_bytes) % 4
         padding_len = 0 if mod == 0 else 4 - mod
+
+        # noinspection PyTypeChecker
         return str_bytes + (b"\x00" * padding_len)

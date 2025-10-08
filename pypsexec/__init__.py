@@ -5,7 +5,13 @@
 import logging
 
 from logging import NullHandler
+from typing import Tuple
+
+from .client import Client
 
 
 logger = logging.getLogger(__name__)
 logger.addHandler(NullHandler())
+
+
+__all__: Tuple[str, ...] = ("Client",)

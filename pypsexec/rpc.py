@@ -19,7 +19,7 @@ from smbprotocol.structure import (
     UuidField,
 )
 
-from pypsexec.exceptions import (
+from .exceptions import (
     PDUException,
 )
 
