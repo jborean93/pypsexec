@@ -42,7 +42,7 @@ lib::setup::python_requirements() {
     fi
 
     echo "Upgrading baseline packages"
-    python -m pip install --upgrade pip setuptools wheel
+    python -m pip install --upgrade pip setuptools
 
     echo "Installing pypsexec"
     python -m pip install .
