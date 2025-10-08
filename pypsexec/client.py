@@ -337,6 +337,8 @@ class Client:
                 finally:
                     log.info("Closing main PAExec pipe")
                     main_pipe.close()
+
+                return
             except SMBResponseException as exc:
                 if exc.status != NtStatus.STATUS_OBJECT_NAME_NOT_FOUND:
                     raise exc
