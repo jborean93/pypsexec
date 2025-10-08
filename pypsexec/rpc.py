@@ -27,12 +27,12 @@ from pypsexec.exceptions import (
 def parse_pdu(data):
     """
     Converts the raw byte string of PDU data into a *PDU() structure. If the
-    type is invalid or unknown to pypsexec it will throw a PDUException.
+    type is invalid or unknown to pypsexec, it will throw a PDUException.
 
     :param data: The byte string returned in the buffer of the IOCTL response
     :return: *PDU() structure that is dependent on the type being parsed
     """
-    type = struct.unpack("<B", data[2:3])[0]  # third element is PType
+    pdu_type = struct.unpack("<B", data[2:3])[0]  # third element is PType
     known_types = {
         PType.REQUEST: RequestPDU(),
         PType.RESPONSE: ResponsePDU(),
@@ -42,19 +42,20 @@ def parse_pdu(data):
         PType.BIND_NAK: BindNakPDU(),
     }
 
-    pdu = known_types.get(type, None)
+    pdu = known_types.get(pdu_type, None)
     if not pdu:
-        raise PDUException("Cannot parse PDU of type %s" % type)
+        raise PDUException("Cannot parse PDU of type %s" % pdu_type)
     pdu.unpack(data)
     return pdu
 
 
-class PFlags(object):
+class PFlags:
     """
-    http://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagtcjh_28
+    https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagtcjh_28
 
     Connection-oriented PDU Data Types
     """
+
     PFC_FIRST_FRAG = 0x01
     PFC_LAST_FRAG = 0x02
     PFC_PENDING_CANCEL = 0x04
@@ -65,13 +66,14 @@ class PFlags(object):
     PFC_OBJECT_UUID = 0x80
 
 
-class PType(object):
+class PType:
     """
-    http://pubs.opengroup.org/onlinepubs/9629399/chap12.htm
+    https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm
 
     Table: RPC Protocol Data Unit
     Various RPC PDU Type values used in a PDU message
     """
+
     REQUEST = 0
     PING = 1
     RESPONSE = 2
@@ -93,47 +95,50 @@ class PType(object):
     ORPHANED = 19
 
 
-class IntegerCharacterRepresentation(object):
+class IntegerCharacterRepresentation:
     ASCII_BIG_ENDIAN = 0x00
     ASCII_LITTLE_ENDIAN = 0x10
     EBCDIC_BIG_ENDIAN = 0x01
     EBCDIC_LITTLE_ENDIAN = 0x11
 
 
-class FloatingPointRepresentation(object):
+class FloatingPointRepresentation:
     IEEE = 0x0
     VAX = 0x1
     CRAY = 0x2
     IBM = 0x3
 
 
-class ContextResult(object):
+class ContextResult:
     """
-    http://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
+    https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
     p_cont_def_result_t
     """
+
     ACCEPTANCE = 0
     USER_REJECTION = 1
     PROVIDER_REJECTION = 2
     NEGOTIATE_ACK = 3  # not in spec but in MS-RPCE 2.2.2.4
 
 
-class ResultReason(object):
+class ResultReason:
     """
-    http://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
+    https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
     p_provider_reason_t
     """
+
     REASON_NOT_SPECIFIED = 0
     ABSTRACT_SYNTAX_NOT_SUPPORTED = 1
     PROPOSED_TRANSFER_SYNTAXES_NOT_SUPPORTED = 2
     LOCAL_LIMIT_EXCEEDED = 3
 
 
-class BindNakReason(object):
+class BindNakReason:
     """
-    http://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
+    https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
     Reasons for rejection of an association are returned in the bind_nak PDU
     """
+
     REASON_NOT_SPECIFIED = 0
     TEMPORARY_CONGESTION = 1
     LOCAL_LIMIT_EXCEEDED = 2
@@ -144,11 +149,12 @@ class BindNakReason(object):
     NO_PSAP_AVAILABLE = 7
 
 
-class FaultStatus(object):
+class FaultStatus:
     """
-    http://pubs.opengroup.org/onlinepubs/9629399/apdxe.htm#tagtcjh_43
+    https://pubs.opengroup.org/onlinepubs/9629399/apdxe.htm#tagtcjh_43
     fault_status Parameter
     """
+
     RPC_S_FAULT_OBJECT_NOT_FOUND = 0x16C9A01B
     RPC_S_CALL_CANCELLED = 0x16C9A031
     RPC_S_FAULT_ADDR_ERROR = 0x16C9A074
@@ -203,96 +209,105 @@ class FaultStatus(object):
 
 class DataRepresentationFormat(Structure):
     """
-    http://pubs.opengroup.org/onlinepubs/9629399/chap14.htm#tagcjh_19
+    https://pubs.opengroup.org/onlinepubs/9629399/chap14.htm#tagcjh_19
     """
 
     def __init__(self):
-        self.fields = OrderedDict([
-            ('integer_character', EnumField(
-                size=1,
-                enum_type=IntegerCharacterRepresentation,
-                default=IntegerCharacterRepresentation.ASCII_LITTLE_ENDIAN
-            )),
-            ('floating_point', EnumField(
-                size=1,
-                enum_type=FloatingPointRepresentation,
-                default=FloatingPointRepresentation.IEEE
-            )),
-            ('reserved1', IntField(size=1)),
-            ('reserved2', IntField(size=1))
-        ])
+        self.fields = OrderedDict(
+            [
+                (
+                    "integer_character",
+                    EnumField(
+                        size=1,
+                        enum_type=IntegerCharacterRepresentation,
+                        default=IntegerCharacterRepresentation.ASCII_LITTLE_ENDIAN,
+                    ),
+                ),
+                (
+                    "floating_point",
+                    EnumField(
+                        size=1,
+                        enum_type=FloatingPointRepresentation,
+                        default=FloatingPointRepresentation.IEEE,
+                    ),
+                ),
+                ("reserved1", IntField(size=1)),
+                ("reserved2", IntField(size=1)),
+            ]
+        )
         super(DataRepresentationFormat, self).__init__()
 
 
 class SyntaxIdElement(Structure):
     """
-    http://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
+    https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
     p_syntax_id_t
     """
 
     def __init__(self):
-        self.fields = OrderedDict([
-            ('uuid', UuidField(little_endian=False)),
-            ('version', IntField(size=4))
-        ])
+        self.fields = OrderedDict(
+            [("uuid", UuidField(little_endian=False)), ("version", IntField(size=4))]
+        )
         super(SyntaxIdElement, self).__init__()
 
 
 class ContextElement(Structure):
     """
-    http://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
+    https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
     p_cont_elem_t
     """
 
     def __init__(self):
-        self.fields = OrderedDict([
-            ('context_id', IntField(size=2)),
-            ('n_transfer_syn', IntField(
-                size=1,
-                default=lambda s: len(s['transfer_syntaxes'].get_value())
-            )),
-            ('reserved', IntField(size=1)),
-            ('abstract_syntax', StructureField(
-                structure_type=SyntaxIdElement
-            )),
-            ('transfer_syntaxes', ListField(
-                list_type=StructureField(
-                    size=20,
-                    structure_type=SyntaxIdElement
+        self.fields = OrderedDict(
+            [
+                ("context_id", IntField(size=2)),
+                (
+                    "n_transfer_syn",
+                    IntField(
+                        size=1,
+                        default=lambda s: len(s["transfer_syntaxes"].get_value()),
+                    ),
                 ),
-                list_count=lambda s: s['n_transfer_syn'].get_value(),
-                size=lambda s: s['n_transfer_syn'].get_value() * 20
-            )),
-        ])
+                ("reserved", IntField(size=1)),
+                ("abstract_syntax", StructureField(structure_type=SyntaxIdElement)),
+                (
+                    "transfer_syntaxes",
+                    ListField(
+                        list_type=StructureField(
+                            size=20, structure_type=SyntaxIdElement
+                        ),
+                        list_count=lambda s: s["n_transfer_syn"].get_value(),
+                        size=lambda s: s["n_transfer_syn"].get_value() * 20,
+                    ),
+                ),
+            ]
+        )
         super(ContextElement, self).__init__()
 
 
 class Result(Structure):
     """
-    http://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
+    https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
     p_result_t
     """
+
     def __init__(self):
-        self.fields = OrderedDict([
-            ('result', EnumField(
-                size=2,
-                enum_type=ContextResult
-            )),
-            ('reason', EnumField(
-                size=2,
-                enum_type=ResultReason
-            )),
-            ('transfer_syntax', StructureField(
-                size=20,
-                structure_type=SyntaxIdElement
-            )),
-        ])
+        self.fields = OrderedDict(
+            [
+                ("result", EnumField(size=2, enum_type=ContextResult)),
+                ("reason", EnumField(size=2, enum_type=ResultReason)),
+                (
+                    "transfer_syntax",
+                    StructureField(size=20, structure_type=SyntaxIdElement),
+                ),
+            ]
+        )
         super(Result, self).__init__()
 
 
 class BindPDU(Structure):
     """
-    http://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagtcjh_28
+    https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagtcjh_28
 
     The bind PDU
     A BIND PDU message
@@ -300,65 +315,53 @@ class BindPDU(Structure):
     """
 
     def __init__(self):
-        self.fields = OrderedDict([
-            ('rpc_vers', IntField(
-                size=1,
-                default=5
-            )),
-            ('rpc_vers_minor', IntField(
-                size=1,
-                default=0
-            )),
-            ('ptype', EnumField(
-                size=1,
-                enum_type=PType,
-                default=PType.BIND
-            )),
-            ('pfx_flags', FlagField(
-                size=1,
-                flag_type=PFlags
-            )),
-            ('packed_drep', StructureField(
-                size=4,
-                structure_type=DataRepresentationFormat
-            )),
-            ('frag_length', IntField(
-                size=2,
-                default=lambda s: len(s)
-            )),
-            ('auth_length', IntField(
-                size=2,
-                default=lambda s: len(s['auth_verifier'])
-            )),
-            ('call_id', IntField(size=4)),
-            ('max_xmit_frag', IntField(
-                size=2,
-                default=4280
-            )),
-            ('max_recv_frag', IntField(
-                size=2,
-                default=4280
-            )),
-            ('assoc_group_id', IntField(size=4)),
-            # p_context_list_t
-            ('n_context_elem', IntField(
-                size=1,
-                default=lambda s: len(s['context_elems'].get_value())
-            )),
-            ('reserved', IntField(size=1)),
-            ('reserved2', IntField(size=2)),
-            ('context_elems', ListField(
-                list_count=lambda s: s['n_context_elem'].get_value(),
-                list_type=StructureField(structure_type=ContextElement),
-                unpack_func=lambda s, d: self._unpack_context_elems(s, d)
-            )),
-            ('auth_verifier', BytesField(
-                size=lambda s: s['auth_length'].get_value()
-            ))
-        ])
+        self.fields = OrderedDict(
+            [
+                ("rpc_vers", IntField(size=1, default=5)),
+                ("rpc_vers_minor", IntField(size=1, default=0)),
+                ("ptype", EnumField(size=1, enum_type=PType, default=PType.BIND)),
+                ("pfx_flags", FlagField(size=1, flag_type=PFlags)),
+                (
+                    "packed_drep",
+                    StructureField(size=4, structure_type=DataRepresentationFormat),
+                ),
+                ("frag_length", IntField(size=2, default=lambda s: len(s))),
+                (
+                    "auth_length",
+                    IntField(size=2, default=lambda s: len(s["auth_verifier"])),
+                ),
+                ("call_id", IntField(size=4)),
+                ("max_xmit_frag", IntField(size=2, default=4280)),
+                ("max_recv_frag", IntField(size=2, default=4280)),
+                ("assoc_group_id", IntField(size=4)),
+                # p_context_list_t
+                (
+                    "n_context_elem",
+                    IntField(
+                        size=1, default=lambda s: len(s["context_elems"].get_value())
+                    ),
+                ),
+                ("reserved", IntField(size=1)),
+                ("reserved2", IntField(size=2)),
+                (
+                    "context_elems",
+                    ListField(
+                        list_count=lambda s: s["n_context_elem"].get_value(),
+                        list_type=StructureField(structure_type=ContextElement),
+                        unpack_func=lambda s, d: self._unpack_context_elems(s, d),
+                    ),
+                ),
+                (
+                    "auth_verifier",
+                    BytesField(size=lambda s: s["auth_length"].get_value()),
+                ),
+            ]
+        )
         super(BindPDU, self).__init__()
 
     def _unpack_context_elems(self, structure, data):
+        del structure
+
         context_elems = []
         while data != b"":
             context_elem = ContextElement()
@@ -370,78 +373,69 @@ class BindPDU(Structure):
 
 class BindAckPDU(Structure):
     """
-    http://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagtcjh_28
+    https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagtcjh_28
 
     The bind_ack PDU
     A BIND ACK PDU message
     """
 
     def __init__(self):
-        self.fields = OrderedDict([
-            ('rpc_vers', IntField(
-                size=1,
-                default=5
-            )),
-            ('rpc_vers_minor', IntField(size=1)),
-            ('ptype', EnumField(
-                size=1,
-                enum_type=PType,
-                default=PType.BIND_ACK
-            )),
-            ('pfx_flags', FlagField(
-                size=1,
-                flag_type=PFlags
-            )),
-            ('packed_drep', StructureField(
-                size=4,
-                structure_type=DataRepresentationFormat
-            )),
-            ('frag_length', IntField(
-                size=2,
-                default=lambda s: len(s)
-            )),
-            ('auth_length', IntField(
-                size=2,
-                default=lambda s: len(s['auth_verifier'])
-            )),
-            ('call_id', IntField(size=4)),
-            ('max_xmit_frag', IntField(size=2)),
-            ('max_recv_frag', IntField(size=2)),
-            ('assoc_group_id', IntField(size=4)),
-            # port_any_t
-            ('sec_addr_len', IntField(
-                size=2,
-                default=lambda s: len(s['sec_addr'])
-            )),
-            ('sec_addr', BytesField(
-                size=lambda s: s['sec_addr_len'].get_value()
-            )),
-            ('pad2', BytesField(
-                size=lambda s: self._pad2_size(s),
-                default=lambda s: b"\x00" * self._pad2_size(s)
-            )),
-            # p_result_list_t
-            ('n_results', IntField(
-                size=1,
-                default=lambda s: len(s['results'].get_value())
-            )),
-            ('reserved', IntField(size=1)),
-            ('reserved2', IntField(size=2)),
-            ('results', ListField(
-                list_count=lambda s: s['n_results'].get_value(),
-                list_type=StructureField(
-                    size=24,
-                    structure_type=Result
-                )
-            )),
-            ('auth_verifier', BytesField(
-                size=lambda s: s['auth_length'].get_value()
-            ))
-        ])
+        self.fields = OrderedDict(
+            [
+                ("rpc_vers", IntField(size=1, default=5)),
+                ("rpc_vers_minor", IntField(size=1)),
+                ("ptype", EnumField(size=1, enum_type=PType, default=PType.BIND_ACK)),
+                ("pfx_flags", FlagField(size=1, flag_type=PFlags)),
+                (
+                    "packed_drep",
+                    StructureField(size=4, structure_type=DataRepresentationFormat),
+                ),
+                ("frag_length", IntField(size=2, default=lambda s: len(s))),
+                (
+                    "auth_length",
+                    IntField(size=2, default=lambda s: len(s["auth_verifier"])),
+                ),
+                ("call_id", IntField(size=4)),
+                ("max_xmit_frag", IntField(size=2)),
+                ("max_recv_frag", IntField(size=2)),
+                ("assoc_group_id", IntField(size=4)),
+                # port_any_t
+                (
+                    "sec_addr_len",
+                    IntField(size=2, default=lambda s: len(s["sec_addr"])),
+                ),
+                ("sec_addr", BytesField(size=lambda s: s["sec_addr_len"].get_value())),
+                (
+                    "pad2",
+                    BytesField(
+                        size=lambda s: self._pad2_size(s),
+                        default=lambda s: b"\x00" * self._pad2_size(s),
+                    ),
+                ),
+                # p_result_list_t
+                (
+                    "n_results",
+                    IntField(size=1, default=lambda s: len(s["results"].get_value())),
+                ),
+                ("reserved", IntField(size=1)),
+                ("reserved2", IntField(size=2)),
+                (
+                    "results",
+                    ListField(
+                        list_count=lambda s: s["n_results"].get_value(),
+                        list_type=StructureField(size=24, structure_type=Result),
+                    ),
+                ),
+                (
+                    "auth_verifier",
+                    BytesField(size=lambda s: s["auth_length"].get_value()),
+                ),
+            ]
+        )
         super(BindAckPDU, self).__init__()
 
     def _pad2_size(self, structure):
-        sec_addr_size = 2 + len(structure['sec_addr'])
+        sec_addr_size = 2 + len(structure["sec_addr"])
 
         mod = sec_addr_size % 8
         return 8 - mod if sec_addr_size > 8 else mod
@@ -449,95 +443,71 @@ class BindAckPDU(Structure):
 
 class BindNakPDU(Structure):
     """
-    http://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
+    https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
     rpcconn_bind_nak_hdr_t
     """
 
     def __init__(self):
-        self.fields = OrderedDict([
-            ('rpc_vers', IntField(
-                size=1,
-                default=5
-            )),
-            ('rpc_vers_minor', IntField(size=1)),
-            ('ptype', EnumField(
-                size=1,
-                enum_type=PType,
-                default=PType.BIND_NAK
-            )),
-            ('pfx_flags', FlagField(
-                size=1,
-                flag_type=PFlags
-            )),
-            ('packed_drep', StructureField(
-                size=4,
-                structure_type=DataRepresentationFormat
-            )),
-            ('frag_length', IntField(
-                size=2,
-                default=lambda s: len(s)
-            )),
-            ('auth_length', IntField(size=2)),
-            ('call_id', IntField(size=4)),
-            ('provider_reject_reason', EnumField(
-                size=2,
-                enum_type=BindNakReason
-            )),
-            # versions
-            ('n_protocols', IntField(
-                size=1,
-                default=lambda s: len(s['p_protocols'].get_value())
-            )),
-            ('p_protocols', ListField(
-                list_type=IntField(size=2),
-                list_count=lambda s: s['n_protocols'].get_value()
-            ))
-        ])
+        self.fields = OrderedDict(
+            [
+                ("rpc_vers", IntField(size=1, default=5)),
+                ("rpc_vers_minor", IntField(size=1)),
+                ("ptype", EnumField(size=1, enum_type=PType, default=PType.BIND_NAK)),
+                ("pfx_flags", FlagField(size=1, flag_type=PFlags)),
+                (
+                    "packed_drep",
+                    StructureField(size=4, structure_type=DataRepresentationFormat),
+                ),
+                ("frag_length", IntField(size=2, default=lambda s: len(s))),
+                ("auth_length", IntField(size=2)),
+                ("call_id", IntField(size=4)),
+                ("provider_reject_reason", EnumField(size=2, enum_type=BindNakReason)),
+                # versions
+                (
+                    "n_protocols",
+                    IntField(
+                        size=1, default=lambda s: len(s["p_protocols"].get_value())
+                    ),
+                ),
+                (
+                    "p_protocols",
+                    ListField(
+                        list_type=IntField(size=2),
+                        list_count=lambda s: s["n_protocols"].get_value(),
+                    ),
+                ),
+            ]
+        )
         super(BindNakPDU, self).__init__()
 
 
 class FaultPDU(Structure):
     """
-    http://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
+    https://pubs.opengroup.org/onlinepubs/9629399/chap12.htm#tagcjh_17_06_03
     rpcconn_fault_hdr_t
     """
 
     def __init__(self):
-        self.fields = OrderedDict([
-            ('rpc_vers', IntField(
-                size=1,
-                default=5
-            )),
-            ('rpc_vers_minor', IntField(size=1)),
-            ('ptype', EnumField(
-                size=1,
-                enum_type=PType,
-                default=PType.FAULT
-            )),
-            ('pfx_flags', FlagField(
-                size=1,
-                flag_type=PFlags
-            )),
-            ('packed_drep', StructureField(
-                size=4,
-                structure_type=DataRepresentationFormat
-            )),
-            ('frag_length', IntField(
-                size=2,
-                default=lambda s: len(s)
-            )),
-            ('auth_length', IntField(size=2)),
-            ('call_id', IntField(size=4)),
-            ('alloc_hint', IntField(size=4)),
-            ('p_cont_id', IntField(size=2)),
-            ('cancel_count', IntField(size=1)),
-            ('reserved', IntField(size=1)),
-            ('status', EnumField(
-                size=4,
-                enum_type=FaultStatus,
-                enum_strict=False
-            ))
-        ])
+        self.fields = OrderedDict(
+            [
+                ("rpc_vers", IntField(size=1, default=5)),
+                ("rpc_vers_minor", IntField(size=1)),
+                ("ptype", EnumField(size=1, enum_type=PType, default=PType.FAULT)),
+                ("pfx_flags", FlagField(size=1, flag_type=PFlags)),
+                (
+                    "packed_drep",
+                    StructureField(size=4, structure_type=DataRepresentationFormat),
+                ),
+                ("frag_length", IntField(size=2, default=lambda s: len(s))),
+                ("auth_length", IntField(size=2)),
+                ("call_id", IntField(size=4)),
+                ("alloc_hint", IntField(size=4)),
+                ("p_cont_id", IntField(size=2)),
+                ("cancel_count", IntField(size=1)),
+                ("reserved", IntField(size=1)),
+                ("status", EnumField(size=4, enum_type=FaultStatus, enum_strict=False)),
+            ]
+        )
         super(FaultPDU, self).__init__()
 
 
@@ -547,55 +517,47 @@ class RequestPDU(Structure):
     """
 
     def __init__(self):
-        self.fields = OrderedDict([
-            ('rpc_vers', IntField(
-                size=1,
-                default=5
-            )),
-            ('rpc_vers_minor', IntField(size=1)),
-            ('ptype', EnumField(
-                size=1,
-                enum_type=PType,
-                default=PType.REQUEST
-            )),
-            ('pfx_flags', FlagField(
-                size=1,
-                flag_type=PFlags
-            )),
-            ('packed_drep', StructureField(
-                size=4,
-                structure_type=DataRepresentationFormat
-            )),
-            ('frag_length', IntField(
-                size=2,
-                default=lambda s: len(s)
-            )),
-            ('auth_length', IntField(
-                size=2,
-                default=lambda s: len(s['auth_verifier'])
-            )),
-            ('call_id', IntField(size=4)),
-            ('alloc_hint', IntField(size=4)),
-            ('cont_id', IntField(size=2)),
-            ('opnum', IntField(size=2)),
-            ('object', BytesField(
-                size=lambda s:
-                16 if s['pfx_flags'].has_flag(PFlags.PFC_OBJECT_UUID) else 0
-            )),
-            ('stub_data', BytesField(
-                size=lambda s: self._get_stub_data_size(s)
-            )),
-            ('auth_verifier', BytesField(
-                size=lambda s: s['auth_length'].get_value()
-            ))
-        ])
+        self.fields = OrderedDict(
+            [
+                ("rpc_vers", IntField(size=1, default=5)),
+                ("rpc_vers_minor", IntField(size=1)),
+                ("ptype", EnumField(size=1, enum_type=PType, default=PType.REQUEST)),
+                ("pfx_flags", FlagField(size=1, flag_type=PFlags)),
+                (
+                    "packed_drep",
+                    StructureField(size=4, structure_type=DataRepresentationFormat),
+                ),
+                ("frag_length", IntField(size=2, default=lambda s: len(s))),
+                (
+                    "auth_length",
+                    IntField(size=2, default=lambda s: len(s["auth_verifier"])),
+                ),
+                ("call_id", IntField(size=4)),
+                ("alloc_hint", IntField(size=4)),
+                ("cont_id", IntField(size=2)),
+                ("opnum", IntField(size=2)),
+                (
+                    "object",
+                    BytesField(
+                        size=lambda s: (
+                            16 if s["pfx_flags"].has_flag(PFlags.PFC_OBJECT_UUID) else 0
+                        )
+                    ),
+                ),
+                ("stub_data", BytesField(size=lambda s: self._get_stub_data_size(s))),
+                (
+                    "auth_verifier",
+                    BytesField(size=lambda s: s["auth_length"].get_value()),
+                ),
+            ]
+        )
         super(RequestPDU, self).__init__()
 
     def _get_stub_data_size(self, structure):
-        total_size = structure['frag_length'].get_value()
+        total_size = structure["frag_length"].get_value()
         fixed_size = 24
-        object_size = len(structure['object'])
-        auth_size = len(structure['auth_verifier'])
+        object_size = len(structure["object"])
+        auth_size = len(structure["auth_verifier"])
 
         return total_size - fixed_size - object_size - auth_size
 
@@ -606,50 +568,38 @@ class ResponsePDU(Structure):
     """
 
     def __init__(self):
-        self.fields = OrderedDict([
-            ('rpc_vers', IntField(
-                size=1,
-                default=5
-            )),
-            ('rpc_vers_minor', IntField(size=1)),
-            ('ptype', EnumField(
-                size=1,
-                enum_type=PType,
-                default=PType.RESPONSE
-            )),
-            ('pfx_flags', FlagField(
-                size=1,
-                flag_type=PFlags
-            )),
-            ('packed_drep', StructureField(
-                size=4,
-                structure_type=DataRepresentationFormat
-            )),
-            ('frag_length', IntField(
-                size=2,
-                default=lambda s: len(s)
-            )),
-            ('auth_length', IntField(
-                size=2,
-                default=lambda s: len(s['auth_verifier'])
-            )),
-            ('call_id', IntField(size=4)),
-            ('alloc_hint', IntField(size=4)),
-            ('cont_id', IntField(size=2)),
-            ('cancel_count', IntField(size=1)),
-            ('reserved', IntField(size=1)),
-            ('stub_data', BytesField(
-                size=lambda s: self._get_stub_data_size(s)
-            )),
-            ('auth_verifier', BytesField(
-                size=lambda s: s['auth_length'].get_value()
-            ))
-        ])
+        self.fields = OrderedDict(
+            [
+                ("rpc_vers", IntField(size=1, default=5)),
+                ("rpc_vers_minor", IntField(size=1)),
+                ("ptype", EnumField(size=1, enum_type=PType, default=PType.RESPONSE)),
+                ("pfx_flags", FlagField(size=1, flag_type=PFlags)),
+                (
+                    "packed_drep",
+                    StructureField(size=4, structure_type=DataRepresentationFormat),
+                ),
+                ("frag_length", IntField(size=2, default=lambda s: len(s))),
+                (
+                    "auth_length",
+                    IntField(size=2, default=lambda s: len(s["auth_verifier"])),
+                ),
+                ("call_id", IntField(size=4)),
+                ("alloc_hint", IntField(size=4)),
+                ("cont_id", IntField(size=2)),
+                ("cancel_count", IntField(size=1)),
+                ("reserved", IntField(size=1)),
+                ("stub_data", BytesField(size=lambda s: self._get_stub_data_size(s))),
+                (
+                    "auth_verifier",
+                    BytesField(size=lambda s: s["auth_length"].get_value()),
+                ),
+            ]
+        )
         super(ResponsePDU, self).__init__()
 
     def _get_stub_data_size(self, structure):
-        total_size = structure['frag_length'].get_value()
+        total_size = structure["frag_length"].get_value()
         fixed_size = 24
-        auth_size = structure['auth_length'].get_value()
+        auth_size = structure["auth_length"].get_value()
 
         return total_size - fixed_size - auth_size

@@ -12,35 +12,35 @@ def abs_path(rel_path):
     return os.path.join(os.path.dirname(__file__), rel_path)
 
 
-with open(abs_path('README.md'), mode='rb') as fd:
-    long_description = fd.read().decode('utf-8')
+with open(abs_path("README.md"), mode="rb") as fd:
+    long_description = fd.read().decode("utf-8")
 
 
 setup(
-    name='pypsexec',
-    version='0.4.0',
-    packages=['pypsexec'],
+    name="pypsexec",
+    version="0.4.0",
+    packages=["pypsexec"],
     install_requires=[
-        'smbprotocol',
+        "smbprotocol",
     ],
     include_package_data=True,
-    python_requires='>=3.7',
-    author='Jordan Borean',
-    author_email='jborean93@gmail.com',
-    url='https://github.com/jborean93/pypsexec',
-    description='Run commands on a remote Windows host using SMB/RPC',
+    python_requires=">=3.7",
+    author="Jordan Borean",
+    author_email="jborean93@gmail.com",
+    url="https://github.com/jborean93/pypsexec",
+    description="Run commands on a remote Windows host using SMB/RPC",
     long_description=long_description,
-    long_description_content_type='text/markdown',
-    keywords='windows psexec paexec remote python',
-    license='MIT',
+    long_description_content_type="text/markdown",
+    keywords="windows psexec paexec remote python",
+    license="MIT",
     classifiers=[
-        'Development Status :: 4 - Beta',
-        'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
-        'Programming Language :: Python :: 3.10',
-        'Programming Language :: Python :: 3.11',
+        "Development Status :: 4 - Beta",
+        "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
     ],
 )
