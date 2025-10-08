@@ -44,6 +44,8 @@ jobs:
         exclude:
         - os: ubuntu-latest
           python-arch: x86
+        - os: ubuntu-latest
+          python-version: 3.7
 
     steps:
     - uses: actions/checkout@v5
