@@ -8,7 +8,7 @@ import socket
 import time
 import uuid
 from types import TracebackType
-from typing import Optional, Literal, Self
+from typing import Optional, Literal
 
 from smbprotocol.connection import (
     Connection,
@@ -603,7 +603,7 @@ class Client:
         msgs[0][1](reqs[0])
         msgs[1][1](reqs[1])
 
-    def __enter__(self) -> Self:
+    def __enter__(self) -> "Client":
         self.connect()
         return self
 
