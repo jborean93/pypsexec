@@ -349,6 +349,38 @@ class Client:
             f"Failed to open main PAExec pipe {self._exe_file}, no more attempts remaining"
         )
 
+    def _handle_stdin(
+        self,
+        stdin: Optional[Union[bytes, Callable[[], Generator[bytes, None, None]]]],
+        stdin_pipe: InputPipe,
+    ) -> None:
+        if not stdin:
+            return
+
+        # send any input if there is any
+        try:
+            if isinstance(stdin, bytes):
+                log.info(
+                    "Sending stdin bytes over stdin pipe: %s",
+                    self._stdin_pipe_name,
+                )
+                stdin_pipe.write(stdin)
+                return
+
+            log.info(
+                "Sending stdin generator bytes over stdin pipe: %s",
+                self._stdin_pipe_name,
+            )
+            for stdin_data in stdin():
+                stdin_pipe.write(stdin_data)
+        except SMBResponseException as exc:
+            # if it fails with a STATUS_PIPE_BROKEN exception, continue as
+            # the actual error will be in the response (process failed)
+            if exc.status != NtStatus.STATUS_PIPE_BROKEN:
+                raise exc
+
+            log.warning("Failed to send data through stdin: %s", exc)
+
     def run_executable(
         self,
         executable: str,
@@ -527,27 +559,7 @@ class Client:
                 while not stderr_pipe.sent_first:
                     pass
 
-                # send any input if there was any
-                try:
-                    if stdin and isinstance(stdin, bytes):
-                        log.info(
-                            "Sending stdin bytes over stdin pipe: %s",
-                            self._stdin_pipe_name,
-                        )
-                        stdin_pipe.write(stdin)
-                    elif stdin:
-                        log.info(
-                            "Sending stdin generator bytes over stdin pipe: %s",
-                            self._stdin_pipe_name,
-                        )
-                        for stdin_data in stdin():
-                            stdin_pipe.write(stdin_data)
-                except SMBResponseException as exc:
-                    # if it fails with a STATUS_PIPE_BROKEN exception, continue as
-                    # the actual error will be in the response (process failed)
-                    if exc.status != NtStatus.STATUS_PIPE_BROKEN:
-                        raise exc
-                    log.warning("Failed to send data through stdin: %s", exc)
+                self._handle_stdin(stdin, stdin_pipe)
 
                 # read the final response from the process
                 log.info("Reading result of PAExec process")
@@ -584,6 +596,7 @@ class Client:
         return_code = rc["return_code"].get_value()
         log.info("Process finished with exit code: %d", return_code)
         log.debug("RC: %d", return_code)
+
         return stdout_out, stderr_bytes, return_code
 
     def _encode_string(self, string) -> Optional[str]:
