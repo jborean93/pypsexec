@@ -236,7 +236,12 @@ class TestServiceFunctional(object):
                     CreateDisposition.FILE_OVERWRITE_IF,
                     CreateOptions.FILE_NON_DIRECTORY_FILE,
                 )
-                paexec_file.write(pkgutil.get_data("pypsexec", os.path.join("resources", "paexec.exe")), 0)
+                paexec_file.write(
+                    pkgutil.get_data(
+                        "pypsexec", os.path.join("resources", "paexec.exe")
+                    ),
+                    0,
+                )
                 paexec_file.close(get_attributes=False)
 
                 yield session

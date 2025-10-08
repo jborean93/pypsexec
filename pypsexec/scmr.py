@@ -64,9 +64,9 @@ from pypsexec.rpc import (
     PFlags,
     RequestPDU,
     ResponsePDU,
-    SyntaxIdElement, PDU,
+    SyntaxIdElement,
+    PDU,
 )
-
 
 log = logging.getLogger(__name__)
 
@@ -290,7 +290,7 @@ class Service:
         if self.scmr:
             log.debug(
                 "Handle for SCMR on %s is already open",
-                self.smb_session.connection.server_name
+                self.smb_session.connection.server_name,
             )
             return
 

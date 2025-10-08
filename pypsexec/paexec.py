@@ -28,7 +28,7 @@ from pypsexec.exceptions import PAExecException
 def out_stream(data: Union[bytearray, bytes], buffer_size: int = 4096):
     byte_count = len(data)
     for i in range(0, byte_count, buffer_size):
-        yield data[i: i + buffer_size], i
+        yield data[i : i + buffer_size], i
 
 
 def paexec_out_stream(path: Optional[str] = None, buffer_size: int = 4096):
@@ -174,7 +174,7 @@ class PAExecSettingsMsg(Structure):
 
         # the id, length and buffer itself is xor'd
         input_data = (
-                self["unique_id"].pack() + self["buffer_len"].pack() + self["buffer"].pack()
+            self["unique_id"].pack() + self["buffer_len"].pack() + self["buffer"].pack()
         )
         buffer = self._xor_data(xor_value, input_data)
 
@@ -212,7 +212,7 @@ class PAExecSettingsMsg(Structure):
             xored_value = int_value ^ xor_value
             new_bytes = struct.pack("<L", xored_value)
             buffer += new_bytes[:1]
-            next_bytes = new_bytes[1:] + data[i + 4: i + 5]
+            next_bytes = new_bytes[1:] + data[i + 4 : i + 5]
             xor_value += 3
 
         int_value = struct.unpack("<L", next_bytes)[0]

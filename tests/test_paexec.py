@@ -6,7 +6,8 @@ import pkgutil
 import pytest
 
 from datetime import (
-    datetime, timezone,
+    datetime,
+    timezone,
 )
 
 from pypsexec.exceptions import (
@@ -32,7 +33,9 @@ def test_paexec_out_stream():
     for data, offset in paexec_out_stream(None, 4096):
         actual += data
 
-    assert actual == pkgutil.get_data("pypsexec", os.path.join("resources", "paexec.exe"))
+    assert actual == pkgutil.get_data(
+        "pypsexec", os.path.join("resources", "paexec.exe")
+    )
 
 
 def test_get_unique_id():
@@ -585,7 +588,9 @@ class TestPAExecFileInfo(object):
         assert data == b""
         assert actual["filename_len"].get_value() == 4
         assert actual["filename"].get_value() == "file".encode("utf-16-le-")
-        assert actual["file_last_write"].get_value() == datetime.utcfromtimestamp(0).replace(tzinfo=timezone.utc)
+        assert actual["file_last_write"].get_value() == datetime.utcfromtimestamp(
+            0
+        ).replace(tzinfo=timezone.utc)
         assert actual["file_version_ls"].get_value() == 10
         assert actual["file_version_ms"].get_value() == 10
         assert actual["copy_file"].get_value()
