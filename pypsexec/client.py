@@ -545,17 +545,22 @@ class Client:
                         raise exc
                     log.warning("Failed to send data through stdin: %s", exc)
 
+                # read the final response from the process
+                log.info("Reading result of PAExec process")
+                exe_result_raw = main_pipe.read(0, 1024)
+                log.info("Results read of PAExec process")
+
             log.info("Getting stdout and stderr from pipe buffer queue")
             stdout_out: Optional[bytes] = stdout_pipe.get_output()
             stderr_bytes: Optional[bytes] = stderr_pipe.get_output()
         else:
+            # read the final response from the process
+            log.info("Reading result of PAExec process")
+            exe_result_raw = main_pipe.read(0, 1024)
+            log.info("Results read of PAExec process")
+
             stdout_out: Optional[bytes] = None
             stderr_bytes: Optional[bytes] = None
-
-        # read the final response from the process
-        log.info("Reading result of PAExec process")
-        exe_result_raw = main_pipe.read(0, 1024)
-        log.info("Results read of PAExec process")
 
         log.info("Closing main PAExec pipe")
         main_pipe.close()
