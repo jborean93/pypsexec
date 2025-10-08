@@ -7,9 +7,9 @@ import os
 import socket
 import time
 import uuid
+from contextlib import contextmanager
 from types import TracebackType
-from typing import Optional, List, Tuple, Type, Generator, Callable, Union
-
+from typing import Optional, List, Tuple, Type, Generator, Callable, Union, Any
 
 try:
     from typing import Literal
@@ -314,9 +314,10 @@ class Client:
             file_name = file["file_name"].get_value().decode("utf-16-le")
             self._delete_file(smb_tree, file_name)
 
+    @contextmanager
     def _open_main_pipe(
         self, smb_tree: TreeConnect, attempts: int = 3, backoff: float = 5.0
-    ) -> Open:
+    ) -> Generator[Open, Any, None]:
         # write the settings to the main PAExec pipe
         pipe_access_mask: int = (
             FilePipePrinterAccessMask.GENERIC_READ
@@ -328,7 +329,12 @@ class Client:
 
         for i in range(1, attempts + 1):
             try:
-                return open_pipe(smb_tree, self._exe_file, pipe_access_mask)
+                main_pipe = open_pipe(smb_tree, self._exe_file, pipe_access_mask)
+                try:
+                    yield main_pipe
+                finally:
+                    log.info("Closing main PAExec pipe")
+                    main_pipe.close()
             except SMBResponseException as exc:
                 if exc.status != NtStatus.STATUS_OBJECT_NAME_NOT_FOUND:
                     raise exc
@@ -525,6 +531,7 @@ class Client:
             raise PypsexecException(
                 "Both run_elevated and run_limited are set, only 1 of these can be true"
             )
+
         if stdin is not None and (asynchronous or interactive):
             raise PypsexecException(
                 "Cannot send stdin data on an interactive or asynchronous process"
@@ -564,45 +571,42 @@ class Client:
         input_data["buffer"] = settings
 
         # write the settings to the main PAExec pipe
-        main_pipe: Open = self._open_main_pipe(smb_tree)
+        with self._open_main_pipe(smb_tree) as main_pipe:
+            log.info("Writing PAExecSettingsMsg to the main PAExec pipe")
+            log.info("%s", input_data)
+            main_pipe.write(input_data.pack(), 0)
 
-        log.info("Writing PAExecSettingsMsg to the main PAExec pipe")
-        log.info("%s", input_data)
-        main_pipe.write(input_data.pack(), 0)
+            log.info("Reading PAExecMsg from the PAExec pipe")
+            settings_resp_raw = main_pipe.read(0, 1024)
+            settings_resp = PAExecMsg()
+            settings_resp.unpack(settings_resp_raw)
+            log.debug(str(settings_resp))
+            settings_resp.check_resp()
 
-        log.info("Reading PAExecMsg from the PAExec pipe")
-        settings_resp_raw = main_pipe.read(0, 1024)
-        settings_resp = PAExecMsg()
-        settings_resp.unpack(settings_resp_raw)
-        log.debug(str(settings_resp))
-        settings_resp.check_resp()
+            # start the process now
+            start_msg = PAExecMsg()
+            start_msg["msg_id"] = PAExecMsgId.MSGID_START_APP
+            start_msg["unique_id"] = self._unique_id
+            start_msg["buffer"] = PAExecStartBuffer()
+            start_buffer = PAExecStartBuffer()
+            start_buffer["process_id"] = self.pid
+            start_buffer["comp_name"] = self.comp_name.encode("utf-16-le")
+            start_msg["buffer"] = start_buffer
 
-        # start the process now
-        start_msg = PAExecMsg()
-        start_msg["msg_id"] = PAExecMsgId.MSGID_START_APP
-        start_msg["unique_id"] = self._unique_id
-        start_msg["buffer"] = PAExecStartBuffer()
-        start_buffer = PAExecStartBuffer()
-        start_buffer["process_id"] = self.pid
-        start_buffer["comp_name"] = self.comp_name.encode("utf-16-le")
-        start_msg["buffer"] = start_buffer
+            log.info("Writing PAExecMsg with PAExecStartBuffer to start the remote process")
+            log.debug("%s", start_msg)
+            main_pipe.write(start_msg.pack(), 0)
 
-        log.info("Writing PAExecMsg with PAExecStartBuffer to start the remote process")
-        log.debug("%s", start_msg)
-        main_pipe.write(start_msg.pack(), 0)
+            exe_result_raw, stdout_out, stderr_bytes = self._handle_pipes(
+                main_pipe=main_pipe,
+                smb_tree=smb_tree,
+                interactive=interactive,
+                asynchronous=asynchronous,
+                stdout=stdout,
+                stderr=stderr,
+                stdin=stdin
+            )
 
-        exe_result_raw, stdout_out, stderr_bytes = self._handle_pipes(
-            main_pipe=main_pipe,
-            smb_tree=smb_tree,
-            interactive=interactive,
-            asynchronous=asynchronous,
-            stdout=stdout,
-            stderr=stderr,
-            stdin=stdin
-        )
-
-        log.info("Closing main PAExec pipe")
-        main_pipe.close()
         log.info("Disconnecting from SMB Tree %s", smb_tree.share_name)
         smb_tree.disconnect()
 
