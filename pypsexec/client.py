@@ -8,7 +8,7 @@ import socket
 import time
 import uuid
 from types import TracebackType
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 
 from smbprotocol.connection import (
     Connection,
@@ -79,8 +79,8 @@ class Client:
         client_comp_name: Optional[str] = None,
         connection_timeout: float = 60,
         dialect: Optional[int] = None,
-        preferred_encryption_algos: Optional[list[str]] = None,
-        preferred_signing_algos: Optional[list[str]] = None,
+        preferred_encryption_algos: Optional[List[str]] = None,
+        preferred_signing_algos: Optional[List[str]] = None,
         exe_file: Optional[str] = None,
         paexec_path: Optional[str] = None,
     ):
@@ -93,10 +93,10 @@ class Client:
 
         # TODO: preferred_encryption_algos and preferred_signing_algos
         #   may be changed into an Iterable...to be verified.
-        self.preferred_encryption_algos: Optional[list[str]] = (
+        self.preferred_encryption_algos: Optional[List[str]] = (
             preferred_encryption_algos
         )
-        self.preferred_signing_algos: Optional[list[str]] = preferred_signing_algos
+        self.preferred_signing_algos: Optional[List[str]] = preferred_signing_algos
 
         self.pid: int = os.getpid() if client_pid is None else client_pid
         self.comp_name: str = (
@@ -164,8 +164,8 @@ class Client:
         self,
         timeout: Optional[float] = None,
         dialect: Optional[int] = None,
-        preferred_encryption_algos: Optional[list[str]] = None,
-        preferred_signing_algos: Optional[list[str]] = None,
+        preferred_encryption_algos: Optional[List[str]] = None,
+        preferred_signing_algos: Optional[List[str]] = None,
     ) -> None:
         # TODO: preferred_encryption_algos and preferred_signing_algos
         #   may be changed into an Iterable...to be verified.
