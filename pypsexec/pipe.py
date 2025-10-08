@@ -163,7 +163,7 @@ class InputPipe:
         self.pipe.close(get_attributes=False)
 
     def __enter__(self) -> "InputPipe":
-        pass
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()

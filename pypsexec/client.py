@@ -72,22 +72,22 @@ log = logging.getLogger(__name__)
 class Client:
 
     def __init__(
-        self,
-        server: str,
-        port: int = 445,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        auth_protocol: Literal["negotiate", "ntlm", "kerberos"] = "negotiate",
-        require_encryption: bool = True,
-        require_signing: bool = True,
-        client_pid: Optional[int] = None,
-        client_comp_name: Optional[str] = None,
-        connection_timeout: float = 60,
-        dialect: Optional[int] = None,
-        preferred_encryption_algos: Optional[List[str]] = None,
-        preferred_signing_algos: Optional[List[str]] = None,
-        exe_file: Optional[str] = None,
-        paexec_path: Optional[str] = None,
+            self,
+            server: str,
+            port: int = 445,
+            username: Optional[str] = None,
+            password: Optional[str] = None,
+            auth_protocol: Literal["negotiate", "ntlm", "kerberos"] = "negotiate",
+            encrypt: bool = True,
+            require_signing: bool = True,
+            client_pid: Optional[int] = None,
+            client_comp_name: Optional[str] = None,
+            connection_timeout: float = 60,
+            dialect: Optional[int] = None,
+            preferred_encryption_algos: Optional[List[str]] = None,
+            preferred_signing_algos: Optional[List[str]] = None,
+            exe_file: Optional[str] = None,
+            paexec_path: Optional[str] = None,
     ):
         self.server: str = server
         self.port: int = port
@@ -115,7 +115,7 @@ class Client:
             username=username,
             password=password,
             auth_protocol=auth_protocol,
-            require_encryption=require_encryption,
+            require_encryption=encrypt,
         )
 
         self.service_name: str = self._generate_service_name()
@@ -133,11 +133,11 @@ class Client:
         )
 
     def _create_session(
-        self,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        auth_protocol: Literal["negotiate", "ntlm", "kerberos"] = "negotiate",
-        require_encryption: bool = True,
+            self,
+            username: Optional[str] = None,
+            password: Optional[str] = None,
+            auth_protocol: Literal["negotiate", "ntlm", "kerberos"] = "negotiate",
+            require_encryption: bool = True,
     ) -> Session:
         return Session(
             self.connection,
@@ -166,11 +166,11 @@ class Client:
         return scmr.Service(self.service_name, self.session)
 
     def connect(
-        self,
-        timeout: Optional[float] = None,
-        dialect: Optional[int] = None,
-        preferred_encryption_algos: Optional[List[str]] = None,
-        preferred_signing_algos: Optional[List[str]] = None,
+            self,
+            timeout: Optional[float] = None,
+            dialect: Optional[int] = None,
+            preferred_encryption_algos: Optional[List[str]] = None,
+            preferred_signing_algos: Optional[List[str]] = None,
     ) -> None:
         # TODO: preferred_encryption_algos and preferred_signing_algos
         #   may be changed into an Iterable...to be verified.
@@ -178,9 +178,9 @@ class Client:
             dialect=dialect or self.dialect,
             timeout=timeout or self.connection_timeout,
             preferred_encryption_algos=preferred_encryption_algos
-            or self.preferred_encryption_algos,
+                                       or self.preferred_encryption_algos,
             preferred_signing_algos=preferred_signing_algos
-            or self.preferred_signing_algos,
+                                    or self.preferred_signing_algos,
         )
         self.session.connect()
         self._service.open()
@@ -215,7 +215,7 @@ class Client:
             % (smb_tree.share_name, self._exe_file)
         )
         for data, o in paexec_out_stream(
-            self.paexec_path, self.connection.max_write_size
+                self.paexec_path, self.connection.max_write_size
         ):
             paexec_file.write(data, o)
         log.debug("Closing open to PAExec file")
@@ -320,11 +320,11 @@ class Client:
     def _open_main_pipe(self, smb_tree: TreeConnect, attempts: int = 3, backoff: float = 5.0) -> Open:
         # write the settings to the main PAExec pipe
         pipe_access_mask: int = (
-            FilePipePrinterAccessMask.GENERIC_READ
-            | FilePipePrinterAccessMask.GENERIC_WRITE
-            | FilePipePrinterAccessMask.FILE_APPEND_DATA
-            | FilePipePrinterAccessMask.READ_CONTROL
-            | FilePipePrinterAccessMask.SYNCHRONIZE
+                FilePipePrinterAccessMask.GENERIC_READ
+                | FilePipePrinterAccessMask.GENERIC_WRITE
+                | FilePipePrinterAccessMask.FILE_APPEND_DATA
+                | FilePipePrinterAccessMask.READ_CONTROL
+                | FilePipePrinterAccessMask.SYNCHRONIZE
         )
 
         for i in range(1, attempts + 1):
@@ -348,28 +348,28 @@ class Client:
         )
 
     def run_executable(
-        self,
-        executable,
-        arguments=None,
-        processors=None,
-        asynchronous=False,
-        load_profile=True,
-        interactive_session=0,
-        interactive=False,
-        run_elevated=False,
-        run_limited=False,
-        username=None,
-        password=None,
-        use_system_account=False,
-        working_dir=None,
-        show_ui_on_win_logon=False,
-        priority=ProcessPriority.NORMAL_PRIORITY_CLASS,
-        remote_log_path=None,
-        timeout_seconds=0,
-        stdout=OutputPipeBytes,
-        stderr=OutputPipeBytes,
-        stdin=None,
-        wow64=False,
+            self,
+            executable,
+            arguments=None,
+            processors=None,
+            asynchronous=False,
+            load_profile=True,
+            interactive_session=0,
+            interactive=False,
+            run_elevated=False,
+            run_limited=False,
+            username=None,
+            password=None,
+            use_system_account=False,
+            working_dir=None,
+            show_ui_on_win_logon=False,
+            priority=ProcessPriority.NORMAL_PRIORITY_CLASS,
+            remote_log_path=None,
+            timeout_seconds=0,
+            stdout=OutputPipeBytes,
+            stderr=OutputPipeBytes,
+            stdin=None,
+            wow64=False,
     ):
         """
         Runs a command over the PAExec/PSExec interface based on the options
@@ -511,11 +511,9 @@ class Client:
             log.info("Connecting to remote pipes to retrieve output")
 
             # create a pipe for stdout, stderr, and stdin and run in a separate thread
-            with (
-                stdout(smb_tree, self._stdout_pipe_name) as stdout_pipe,
-                stderr(smb_tree, self._stderr_pipe_name) as stderr_pipe,
-                InputPipe(smb_tree, self._stdin_pipe_name) as stdin_pipe
-            ):
+            with stdout(smb_tree, self._stdout_pipe_name) as stdout_pipe, \
+                    stderr(smb_tree, self._stderr_pipe_name) as stderr_pipe, \
+                    InputPipe(smb_tree, self._stdin_pipe_name) as stdin_pipe:
                 # wait until the stdout and stderr pipes have sent their first
                 # response
                 log.debug("Waiting for stdout pipe to send first request")
@@ -612,7 +610,7 @@ class Client:
         return self
 
     def __exit__(
-        self, exc_type: Type[Exception], exc_val: Exception, exc_tb: TracebackType
+            self, exc_type: Type[Exception], exc_val: Exception, exc_tb: TracebackType
     ) -> None:
         self.disconnect()
 
