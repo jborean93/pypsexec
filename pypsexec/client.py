@@ -8,7 +8,7 @@ import socket
 import time
 import uuid
 from types import TracebackType
-from typing import Optional, Literal, List
+from typing import Optional, Literal, List, Tuple
 
 from smbprotocol.connection import (
     Connection,
@@ -145,8 +145,8 @@ class Client:
     def _generate_service_name(self) -> str:
         return "PAExec-%d-%s" % (self.pid, self.comp_name)
 
-    def _generate_pipe_names(self) -> tuple[str, str, str]:
-        placeholder_values: tuple[str, int] = (self.comp_name, self.pid)
+    def _generate_pipe_names(self) -> Tuple[str, str, str]:
+        placeholder_values: Tuple[str, int] = (self.comp_name, self.pid)
 
         return (
             "PaExecOut%s%d" % placeholder_values,
@@ -613,4 +613,4 @@ class Client:
         self.disconnect()
 
 
-__all__: tuple[str, ...] = ("Client",)
+__all__: Tuple[str, ...] = ("Client",)
