@@ -381,6 +381,54 @@ class Client:
 
             log.warning("Failed to send data through stdin: %s", exc)
 
+    def _handle_pipes(
+        self,
+        main_pipe: Open,
+        smb_tree: TreeConnect,
+        interactive: bool,
+        asynchronous: bool,
+        stdout: Type[OutputPipe],
+        stderr: Type[OutputPipe],
+        stdin: Optional[
+            Union[bytes, Callable[[], Generator[bytes, None, None]]]
+        ]
+    ):
+        if not interactive and not asynchronous:
+            log.info("Connecting to remote pipes to retrieve output")
+
+            # create a pipe for stdout, stderr, and stdin and run in a separate thread
+            with stdout(smb_tree, self._stdout_pipe_name) as stdout_pipe, stderr(
+                smb_tree, self._stderr_pipe_name
+            ) as stderr_pipe, InputPipe(smb_tree, self._stdin_pipe_name) as stdin_pipe:
+                # wait until the stdout and stderr pipes have sent their first response
+                log.debug("Waiting for stdout pipe to send first request")
+                while not stdout_pipe.sent_first:
+                    pass
+
+                log.debug("Waiting for stderr pipe to send first request")
+                while not stderr_pipe.sent_first:
+                    pass
+
+                self._handle_stdin(stdin, stdin_pipe)
+
+                # read the final response from the process
+                log.info("Reading result of PAExec process")
+                exe_result_raw = main_pipe.read(0, 1024)
+                log.info("Results read of PAExec process")
+
+            log.info("Getting stdout and stderr from pipe buffer queue")
+            stdout_out: Optional[bytes] = stdout_pipe.get_output()
+            stderr_bytes: Optional[bytes] = stderr_pipe.get_output()
+
+            return exe_result_raw, stdout_out, stderr_bytes
+
+        # read the final response from the process
+        log.info("Reading result of PAExec process")
+        exe_result_raw = main_pipe.read(0, 1024)
+        log.info("Results read of PAExec process")
+
+        return exe_result_raw, None, None
+
     def run_executable(
         self,
         executable: str,
@@ -543,40 +591,15 @@ class Client:
         log.debug("%s", start_msg)
         main_pipe.write(start_msg.pack(), 0)
 
-        if not interactive and not asynchronous:
-            log.info("Connecting to remote pipes to retrieve output")
-
-            # create a pipe for stdout, stderr, and stdin and run in a separate thread
-            with stdout(smb_tree, self._stdout_pipe_name) as stdout_pipe, stderr(
-                smb_tree, self._stderr_pipe_name
-            ) as stderr_pipe, InputPipe(smb_tree, self._stdin_pipe_name) as stdin_pipe:
-                # wait until the stdout and stderr pipes have sent their first response
-                log.debug("Waiting for stdout pipe to send first request")
-                while not stdout_pipe.sent_first:
-                    pass
-
-                log.debug("Waiting for stderr pipe to send first request")
-                while not stderr_pipe.sent_first:
-                    pass
-
-                self._handle_stdin(stdin, stdin_pipe)
-
-                # read the final response from the process
-                log.info("Reading result of PAExec process")
-                exe_result_raw = main_pipe.read(0, 1024)
-                log.info("Results read of PAExec process")
-
-            log.info("Getting stdout and stderr from pipe buffer queue")
-            stdout_out: Optional[bytes] = stdout_pipe.get_output()
-            stderr_bytes: Optional[bytes] = stderr_pipe.get_output()
-        else:
-            # read the final response from the process
-            log.info("Reading result of PAExec process")
-            exe_result_raw = main_pipe.read(0, 1024)
-            log.info("Results read of PAExec process")
-
-            stdout_out: Optional[bytes] = None
-            stderr_bytes: Optional[bytes] = None
+        exe_result_raw, stdout_out, stderr_bytes = self._handle_pipes(
+            main_pipe=main_pipe,
+            smb_tree=smb_tree,
+            interactive=interactive,
+            asynchronous=asynchronous,
+            stdout=stdout,
+            stderr=stderr,
+            stdin=stdin
+        )
 
         log.info("Closing main PAExec pipe")
         main_pipe.close()
