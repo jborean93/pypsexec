@@ -1,0 +1,40 @@
+[build-system]
+requires = [
+    "setuptools >= 77.0.0",  # Support for SPDX license expressions
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pypsexec"
+version = "0.4.0"
+description = "Run commands on a remote Windows host using SMB/RPC"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [
+    { name = "Jordan Borean", email = "jborean93@gmail.com" }
+]
+keywords = ["windows", "psexec", "paexec", "remote", "python"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "smbprotocol",
+]
+
+[project.urls]
+homepage = "https://github.com/jborean93/pypsexec"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = "tests"
+addopts = "--import-mode=importlib"

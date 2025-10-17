@@ -78,7 +78,7 @@ decoded by someone who knows the protocol.
 
 ## Requirements
 
-* Python 3.7+
+* Python 3.9+
 * [smbprotocol](https://github.com/jborean93/smbprotocol)
 
 To install pypsexec, simply run
@@ -353,18 +353,12 @@ by running;
 
 ```bash
 pip install -r requirements-test.txt
-
-# you can also run tox by installing tox
-pip install tox
 ```
 
 From there to run the basic tests run;
 
 ```bash
-py.test -v --cov pypsexec --cov-report term-missing
-
-# or with tox
-tox
+python -m pytest -v --cov pypsexec --cov-report term-missing
 ```
 
 There are extra tests that only run when certain environment variables are set.
@@ -374,7 +368,7 @@ To run these tests set the following variables;
 * `PYPSEXEC_USERNAME`: The username to use authenticate with
 * `PYPSEXEC_PASSWORD`: The password for `PYPSEXEC_USERNAME`
 
-From there, you can just run `tox` or `py.test` with these environment
+From there, you can just run `pytest` with these environment
 variables to run the integration tests.
 
 
