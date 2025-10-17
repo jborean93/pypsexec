@@ -6,7 +6,7 @@ import pkgutil
 import pytest
 
 from datetime import (
-    datetime,
+    datetime, timezone
 )
 
 from pypsexec.exceptions import (
@@ -265,7 +265,7 @@ class TestPAExecSettingsMsg(object):
         assert src_files[0]['filename'].get_value() == \
             "src1".encode('utf-16-le')
         assert src_files[0]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+            datetime.fromtimestamp(0, tz=timezone.utc)
         assert src_files[0]['file_version_ls'].get_value() == 0
         assert src_files[0]['file_version_ms'].get_value() == 0
         assert not src_files[0]['copy_file'].get_value()
@@ -273,7 +273,7 @@ class TestPAExecSettingsMsg(object):
         assert src_files[1]['filename'].get_value() == \
             "src2".encode('utf-16-le')
         assert src_files[1]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+            datetime.fromtimestamp(0, tz=timezone.utc)
         assert src_files[1]['file_version_ls'].get_value() == 0
         assert src_files[1]['file_version_ms'].get_value() == 0
         assert not src_files[1]['copy_file'].get_value()
@@ -284,7 +284,7 @@ class TestPAExecSettingsMsg(object):
         assert dest_files[0]['filename'].get_value() == \
             "dest1".encode('utf-16-le')
         assert dest_files[0]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+            datetime.fromtimestamp(0, tz=timezone.utc)
         assert dest_files[0]['file_version_ls'].get_value() == 0
         assert dest_files[0]['file_version_ms'].get_value() == 0
         assert not dest_files[0]['copy_file'].get_value()
@@ -292,7 +292,7 @@ class TestPAExecSettingsMsg(object):
         assert dest_files[1]['filename'].get_value() == \
             "dest2".encode('utf-16-le')
         assert dest_files[1]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+            datetime.fromtimestamp(0, tz=timezone.utc)
         assert dest_files[1]['file_version_ls'].get_value() == 0
         assert dest_files[1]['file_version_ms'].get_value() == 0
         assert not dest_files[1]['copy_file'].get_value()
@@ -516,7 +516,7 @@ class TestPAExecSettingsBuffer(object):
         assert src_files[0]['filename'].get_value() == \
             "src1".encode('utf-16-le')
         assert src_files[0]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+            datetime.fromtimestamp(0, tz=timezone.utc)
         assert src_files[0]['file_version_ls'].get_value() == 0
         assert src_files[0]['file_version_ms'].get_value() == 0
         assert not src_files[0]['copy_file'].get_value()
@@ -524,7 +524,7 @@ class TestPAExecSettingsBuffer(object):
         assert src_files[1]['filename'].get_value() == \
             "src2".encode('utf-16-le')
         assert src_files[1]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+            datetime.fromtimestamp(0, tz=timezone.utc)
         assert src_files[1]['file_version_ls'].get_value() == 0
         assert src_files[1]['file_version_ms'].get_value() == 0
         assert not src_files[1]['copy_file'].get_value()
@@ -535,7 +535,7 @@ class TestPAExecSettingsBuffer(object):
         assert dest_files[0]['filename'].get_value() == \
             "dest1".encode('utf-16-le')
         assert dest_files[0]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+            datetime.fromtimestamp(0, tz=timezone.utc)
         assert dest_files[0]['file_version_ls'].get_value() == 0
         assert dest_files[0]['file_version_ms'].get_value() == 0
         assert not dest_files[0]['copy_file'].get_value()
@@ -543,7 +543,7 @@ class TestPAExecSettingsBuffer(object):
         assert dest_files[1]['filename'].get_value() == \
             "dest2".encode('utf-16-le')
         assert dest_files[1]['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+            datetime.fromtimestamp(0, tz=timezone.utc)
         assert dest_files[1]['file_version_ls'].get_value() == 0
         assert dest_files[1]['file_version_ms'].get_value() == 0
         assert not dest_files[1]['copy_file'].get_value()
@@ -583,7 +583,7 @@ class TestPAExecFileInfo(object):
         assert actual['filename_len'].get_value() == 4
         assert actual['filename'].get_value() == "file".encode('utf-16-le-')
         assert actual['file_last_write'].get_value() == \
-            datetime.utcfromtimestamp(0)
+            datetime.fromtimestamp(0, tz=timezone.utc)
         assert actual['file_version_ls'].get_value() == 10
         assert actual['file_version_ms'].get_value() == 10
         assert actual['copy_file'].get_value()

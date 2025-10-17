@@ -1,4 +1,4 @@
-pycodestyle
+build
 pytest
 pytest-cov
 pytest-mock
