@@ -3,6 +3,7 @@
 ## 0.4.0 - TBD
 
 * Dropped old Python versions, new minimum is 3.9
+* Close and reset the service handle after deletion so an existing service can be recreated and started.
 
 ## 0.3.0 - 2021-10-22
 

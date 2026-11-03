@@ -6,6 +6,7 @@ import os
 import pkgutil
 import pytest
 import uuid
+from unittest.mock import Mock, call
 
 from smbprotocol.connection import (
     Connection,
@@ -50,7 +51,142 @@ from pypsexec.scmr import (
     Service,
     ServiceStatus,
     ServiceType,
+    ScmrReturnValues,
 )
+
+
+class TestService(object):
+
+    @pytest.fixture
+    def service(self):
+        service = Service("pypsexectest", None)
+        service._scmr = Mock(spec=SCMRApi)
+        service._scmr_handle = b"manager-handle"
+        service._handle = b"old-service-handle"
+        return service
+
+    def test_delete_then_create_uses_new_handle(self, service):
+        scmr = service._scmr
+        old_handle = service._handle
+        new_handle = b"new-service-handle"
+        scmr.open_service_w.side_effect = SCMRException(
+            "ROpenServiceW", ScmrReturnValues.ERROR_SERVICE_DOES_NOT_EXIST,
+            "ERROR_SERVICE_DOES_NOT_EXIST"
+        )
+        scmr.create_service_w.return_value = (0, new_handle)
+
+        service.delete()
+
+        assert service._handle is None
+        scmr.close_service_handle_w.assert_called_once_with(old_handle)
+
+        service.create("C:\\Windows\\PAExec.exe -service")
+        service.start()
+
+        assert service._handle == new_handle
+        scmr.create_service_w.assert_called_once()
+        scmr.start_service_w.assert_called_once_with(new_handle)
+        assert [entry[0] for entry in scmr.mock_calls] == [
+            "control_service", "delete_service", "close_service_handle_w",
+            "open_service_w", "create_service_w", "start_service_w"
+        ]
+
+    def test_delete_preserves_manager_connection(self, service):
+        scmr = service._scmr
+        manager_handle = service._scmr_handle
+        old_handle = service._handle
+
+        service.delete()
+
+        assert service._handle is None
+        assert service._scmr is scmr
+        assert service._scmr_handle == manager_handle
+        scmr.close_service_handle_w.assert_called_once_with(old_handle)
+        scmr.close.assert_not_called()
+
+        service.close()
+        service.close()
+
+        assert scmr.close_service_handle_w.call_args_list == [
+            call(old_handle), call(manager_handle)
+        ]
+        scmr.close.assert_called_once_with()
+
+    def test_delete_missing_service(self, service):
+        scmr = service._scmr
+        service._handle = None
+        scmr.open_service_w.side_effect = SCMRException(
+            "ROpenServiceW", ScmrReturnValues.ERROR_SERVICE_DOES_NOT_EXIST,
+            "ERROR_SERVICE_DOES_NOT_EXIST"
+        )
+
+        service.delete()
+
+        assert service._handle is None
+        scmr.control_service.assert_not_called()
+        scmr.delete_service.assert_not_called()
+        scmr.close_service_handle_w.assert_not_called()
+
+    def test_delete_opens_existing_service(self, service):
+        scmr = service._scmr
+        old_handle = service._handle
+        service._handle = None
+        scmr.open_service_w.return_value = old_handle
+
+        service.delete()
+
+        assert service._handle is None
+        scmr.open_service_w.assert_called_once()
+        scmr.delete_service.assert_called_once_with(old_handle)
+        scmr.close_service_handle_w.assert_called_once_with(old_handle)
+
+    def test_delete_stopped_service(self, service):
+        scmr = service._scmr
+        old_handle = service._handle
+        scmr.control_service.side_effect = SCMRException(
+            "RControlService", ScmrReturnValues.ERROR_SERVICE_NOT_ACTIVE,
+            "ERROR_SERVICE_NOT_ACTIVE"
+        )
+
+        service.delete()
+
+        assert service._handle is None
+        scmr.delete_service.assert_called_once_with(old_handle)
+        scmr.close_service_handle_w.assert_called_once_with(old_handle)
+
+    @pytest.mark.parametrize("operation, function, return_code", [
+        ("control_service", "RControlService",
+         ScmrReturnValues.ERROR_SERVICE_CANNOT_ACCEPT_CTRL),
+        ("delete_service", "RDeleteService",
+         ScmrReturnValues.ERROR_SERVICE_MARKED_FOR_DELETE),
+        ("close_service_handle_w", "RCloseServiceHandleW",
+         ScmrReturnValues.ERROR_INVALID_HANDLE),
+    ])
+    def test_delete_failure_preserves_handle_for_close(
+            self, service, operation, function, return_code):
+        scmr = service._scmr
+        old_handle = service._handle
+        error = SCMRException(function, return_code, "ERROR_TEST")
+        getattr(scmr, operation).side_effect = error
+
+        with pytest.raises(SCMRException) as exc:
+            service.delete()
+
+        assert exc.value is error
+        assert service._handle == old_handle
+        assert service._scmr is scmr
+        if operation == "control_service":
+            scmr.delete_service.assert_not_called()
+        if operation != "close_service_handle_w":
+            scmr.close_service_handle_w.assert_not_called()
+
+        getattr(scmr, operation).side_effect = None
+        service.close()
+
+        assert service._handle is None
+        assert service._scmr_handle is None
+        assert service._scmr is None
+        assert call(old_handle) in scmr.close_service_handle_w.call_args_list
 
 
 class TestServiceStatus(object):
@@ -267,6 +403,25 @@ class TestServiceFunctional(object):
         finally:
             service.delete()
             service.close()
+
+    def test_delete_then_recreate_service(self, session):
+        service = self._create_dummy_stopped_service(session)
+        try:
+            service.open()
+            service.delete()
+            assert service._handle is None
+
+            service.create("C:\\Windows\\PAExec.exe -service")
+            assert service._handle is not None
+            service.start()
+            status = service._scmr.query_service_status(service._handle)
+            assert status['current_state'].get_value() == \
+                CurrentState.SERVICE_RUNNING
+        finally:
+            try:
+                service.delete()
+            finally:
+                service.close()
 
     def test_open_service_with_invalid_name(self, session):
         service = Service(b"\x00 a service".decode('utf-8'), session)
