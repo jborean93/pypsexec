@@ -6,6 +6,7 @@ import os
 import pytest
 import sys
 import time
+import uuid
 
 from pypsexec.client import (
     Client,
@@ -18,6 +19,7 @@ from pypsexec.exceptions import (
 
 from pypsexec.paexec import (
     ProcessPriority,
+    get_unique_id,
 )
 
 from pypsexec.pipe import (
@@ -68,6 +70,28 @@ class TestClient(object):
         assert client.port == 445
         assert isinstance(client.pid, int)
         assert isinstance(client.current_host, str)
+
+    def test_unique_service_names(self):
+        clients = [Client("server"), Client("server")]
+        assert clients[0].pid == clients[1].pid
+        assert clients[0].current_host == clients[1].current_host
+        assert clients[0].service_name != clients[1].service_name
+
+        for client in clients:
+            assert client.service_name.startswith("PAExec-")
+            service_id = uuid.UUID(client.service_name[len("PAExec-"):])
+            assert service_id.version == 4
+            assert client.service_name == "PAExec-%s" % service_id.hex
+            assert client._exe_file == "%s.exe" % client.service_name
+            assert client._service.name == client.service_name
+            assert client._stdout_pipe_name == "PaExecOut%s%d" % (
+                client.current_host, client.pid)
+            assert client._stderr_pipe_name == "PaExecErr%s%d" % (
+                client.current_host, client.pid)
+            assert client._stdin_pipe_name == "PaExecIn%s%d" % (
+                client.current_host, client.pid)
+            assert client._unique_id == get_unique_id(
+                client.pid, client.current_host)
 
     def test_port_override(self):
         client = Client("server", "username", "password", port=123)
@@ -148,6 +172,34 @@ class TestClientFunctional(object):
             pytest.skip("PYPSEXEC_SERVER, PYPSEXEC_USERNAME, PYPSEXEC_PASSWORD"
                         " environment variables were not set. Integration "
                         "tests will be skipped")
+
+    def test_consecutive_clients(self):
+        server = os.environ.get('PYPSEXEC_SERVER', None)
+        if not server:
+            pytest.skip("PYPSEXEC_SERVER, PYPSEXEC_USERNAME, PYPSEXEC_PASSWORD"
+                        " environment variables were not set. Integration "
+                        "tests will be skipped")
+
+        for expected_output in (b"first", b"second"):
+            client = Client(
+                server,
+                username=os.environ.get('PYPSEXEC_USERNAME', None),
+                password=os.environ.get('PYPSEXEC_PASSWORD', None))
+            client.connect()
+            try:
+                client.create_service()
+                try:
+                    actual = client.run_executable(
+                        "powershell.exe", arguments="-",
+                        stdin=b"Write-Host " + expected_output +
+                        b"\r\n[Console]::Error.WriteLine('error')\r\nexit 7\r\n")
+                    assert actual[0].strip() == expected_output
+                    assert actual[1].strip() == b"error"
+                    assert actual[2] == 7
+                finally:
+                    client.remove_service()
+            finally:
+                client.disconnect()
 
     def test_create_service_that_already_exists(self, client):
         actual = client.run_executable("whoami.exe")

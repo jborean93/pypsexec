@@ -296,6 +296,17 @@ finally:
     c.disconnect()
 ```
 
+Each `Client` instance generates a UUID-based service name, `PAExec-<uuid.hex>`.
+The executable and control pipe names are derived from this service name. New
+clients in the same process therefore do not reuse the name of a service that
+Windows is still deleting. The name stays unchanged for the lifetime of the
+client, including repeated calls to `create_service()` or `run_executable()`.
+Multiple sequential commands can reuse an already-created service.
+
+The stdin, stdout, and stderr pipe names still use the local hostname and PID.
+Unique service names do not provide isolation for concurrent executions from
+the same process against the same Windows host.
+
 In the case of a fatal failure, this project may leave behind some the PAExec
 payload in `C:\Windows` or the service still installed. As these are uniquely
 named they can build up over time. They can be manually removed but you can
