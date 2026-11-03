@@ -1,9 +1,8 @@
 # Python PsExec Library
 
-[![Test workflow](https://github.com/jborean93/pypsexec/actions/workflows/ci.yml/badge.svg)](https://github.com/jborean93/pypsexec/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/jborean93/pypsexec/branch/master/graph/badge.svg?token=Hi2Nk4RfMF)](https://codecov.io/gh/jborean93/pypsexec)
-[![PyPI version](https://badge.fury.io/py/pypsexec.svg)](https://badge.fury.io/py/pypsexec)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/jborean93/pypsexec/blob/master/LICENSE)
+[![Test workflow](https://github.com/Welflo/pypsexec/actions/workflows/ci.yml/badge.svg)](https://github.com/Welflo/pypsexec/actions/workflows/ci.yml)
+[![Upstream coverage](https://codecov.io/gh/jborean93/pypsexec/branch/master/graph/badge.svg)](https://codecov.io/gh/jborean93/pypsexec)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Welflo/pypsexec/blob/master/LICENSE)
 
 This library can run commands on a remote Windows host through Python. This
 means that it can be run on any host with Python and does not require any
@@ -21,6 +20,43 @@ to run the remote service and start the process execution.
 
 I would like to thank the developers of Power Admin for creating this library
 as it has made this library a lot less complex than what it would have been.
+
+
+## Fork Releases
+
+This fork uses PEP 440 local versions such as `0.4.0+welflo.1` to distinguish
+its builds from upstream. Packages are distributed through
+[GitHub Releases](https://github.com/Welflo/pypsexec/releases), not PyPI.
+
+1. Update `project.version` in `pyproject.toml` and the changelog for each release.
+2. Commit the changes and push them to `master`.
+3. Create and push a tag matching `v` followed by the exact package version:
+
+    ```bash
+    git tag v0.4.0+welflo.1
+    git push origin v0.4.0+welflo.1
+    ```
+
+4. GitHub Actions validates the tag, builds the packages, and runs the existing
+    Linux and Windows test matrix against the built wheel. After all tests pass,
+    it creates a draft release with the wheel and source archive attached.
+5. Review the results and publish the draft on GitHub. Draft assets are not
+    publicly available until the release is published. The test matrix does not
+    replace reboot validation on an actual target device.
+
+Actions must be enabled in the fork and permitted to write repository contents
+for the release job. Workflow reruns can update draft assets, but refuse to
+overwrite assets of an already published release.
+
+To use this fork in a consuming package, replace its existing `pypsexec`
+dependency with the published wheel's download URL. For example:
+
+```toml
+"pypsexec @ https://github.com/Welflo/pypsexec/releases/download/v0.4.0%2Bwelflo.1/pypsexec-0.4.0%2Bwelflo.1-py3-none-any.whl",
+```
+
+Update the consuming project's lock file and environment after changing the
+dependency. A private repository additionally requires download authentication.
 
 
 ## Features
@@ -81,7 +117,8 @@ decoded by someone who knows the protocol.
 * Python 3.9+
 * [smbprotocol](https://github.com/jborean93/smbprotocol)
 
-To install pypsexec, simply run
+To install the upstream package from PyPI, run the following. For this fork,
+use the GitHub Release wheel described above instead.
 
 ```bash
 pip install pypsexec

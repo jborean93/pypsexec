@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 - TBD
+## 0.4.0+welflo.1 - TBD
 
 * Dropped old Python versions, new minimum is 3.9
 * Close and reset the service handle after deletion so an existing service can be recreated and started.

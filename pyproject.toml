@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pypsexec"
-version = "0.4.0"
+version = "0.4.0+welflo.1"
 description = "Run commands on a remote Windows host using SMB/RPC"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -30,7 +30,7 @@ dependencies = [
 ]
 
 [project.urls]
-homepage = "https://github.com/jborean93/pypsexec"
+homepage = "https://github.com/Welflo/pypsexec"
 
 [tool.setuptools.packages.find]
 where = ["src"]
