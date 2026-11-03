@@ -83,12 +83,7 @@ jobs:
         - '3.13'
         - '3.14'
         python-arch:
-        - x86
         - x64
-
-        exclude:
-        - os: ubuntu-latest
-          python-arch: x86
 
     steps:
     - uses: actions/checkout@v5
