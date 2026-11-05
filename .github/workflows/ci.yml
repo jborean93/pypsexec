@@ -3,6 +3,8 @@ on:
   push:
     branches:
     - master
+    tags:
+    - 'v*'
     paths-ignore:
     - CHANGELOG.md
     - LICENSE
@@ -16,9 +18,8 @@ on:
     - LICENSE
     - README.md
 
-  release:
-    types:
-    - published
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -28,6 +29,28 @@ jobs:
     steps:
     - name: Check out code
       uses: actions/checkout@v5
+
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+
+    - name: Validate release version
+      if: github.ref_type == 'tag'
+      env:
+        RELEASE_TAG: ${{ github.ref_name }}
+      run: |
+        python - <<'PY'
+        import os
+        import tomllib
+        from pathlib import Path
+
+        version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+        expected_tag = f"v{version}"
+        actual_tag = os.environ["RELEASE_TAG"]
+        if actual_tag != expected_tag:
+            raise SystemExit(f"Release tag {actual_tag!r} must match {expected_tag!r}")
+        print(f"Validated release version: {version}")
+        PY
 
     - name: Build pypsexec
       run: |
@@ -53,19 +76,13 @@ jobs:
         - ubuntu-latest
         - windows-latest
         python-version:
-        - 3.9
         - '3.10'
         - '3.11'
         - '3.12'
         - '3.13'
         - '3.14'
         python-arch:
-        - x86
         - x64
-
-        exclude:
-        - os: ubuntu-latest
-          python-arch: x86
 
     steps:
     - uses: actions/checkout@v5
@@ -121,14 +138,15 @@ jobs:
         flags: ${{ steps.os.outputs.name }},py${{ matrix.python-version }},${{ matrix.python-arch }}
         token: ${{ secrets.CODECOV_TOKEN }}
 
-  publish:
-    name: publish
+  release:
+    name: Create GitHub release draft
+    if: github.event_name == 'push' && github.ref_type == 'tag'
     needs:
+    - build
     - test
     runs-on: ubuntu-latest
     permissions:
-      # IMPORTANT: this permission is mandatory for trusted publishing
-      id-token: write
+      contents: write
 
     steps:
     - uses: actions/download-artifact@v5
@@ -136,6 +154,28 @@ jobs:
         name: artifact
         path: ./dist
 
-    - name: Publish
-      if: startsWith(github.event.release.tag_name, 'v')
-      uses: pypa/gh-action-pypi-publish@release/v1
+    - name: Attach packages to GitHub release draft
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        RELEASE_TAG: ${{ github.ref_name }}
+      run: |
+        set -euo pipefail
+        shopt -s nullglob
+        wheels=(./dist/*.whl)
+        archives=(./dist/*.tar.gz)
+        if [[ ${#wheels[@]} -ne 1 || ${#archives[@]} -ne 1 ]]; then
+          echo "Expected exactly one wheel and one source archive" >&2
+          exit 1
+        fi
+        if is_draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft'); then
+          if [[ "$is_draft" != "true" ]]; then
+            echo "Refusing to overwrite assets of a published release" >&2
+            exit 1
+          fi
+          gh release upload "$RELEASE_TAG" "${wheels[0]}" "${archives[0]}" --clobber
+        else
+          gh release create "$RELEASE_TAG" "${wheels[0]}" "${archives[0]}" \
+            --draft --verify-tag --title "$RELEASE_TAG" --generate-notes
+        fi

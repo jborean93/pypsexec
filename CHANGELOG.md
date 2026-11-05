@@ -1,8 +1,10 @@
 # Changelog
 
-## 0.4.0 - TBD
+## 0.4.0 - 2026-11-05
 
-* Dropped old Python versions, new minimum is 3.9
+* Dropped old Python versions, new minimum is 3.10
+* Close and reset the service handle after deletion so an existing service can be recreated and started.
+* Generate a UUID-based PAExec service name for each Client instead of using the local PID and hostname, avoiding name reuse between clients while Windows is still deleting a previous service. Standard input/output pipe names are unchanged.
 
 ## 0.3.0 - 2021-10-22
 

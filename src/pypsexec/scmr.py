@@ -366,6 +366,8 @@ class Service(object):
 
         self.stop()
         self._scmr.delete_service(self._handle)
+        self._scmr.close_service_handle_w(self._handle)
+        self._handle = None
 
     def _open_service(self):
         if self._handle:

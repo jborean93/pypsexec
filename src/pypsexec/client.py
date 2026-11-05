@@ -83,7 +83,7 @@ class Client(object):
         self.session = Session(self.connection, username, password,
                                require_encryption=encrypt)
 
-        self.service_name = "PAExec-%d-%s" % (self.pid, self.current_host)
+        self.service_name = "PAExec-%s" % uuid.uuid4().hex
         log.info("Creating PyPsexec Client with unique name: %s"
                  % self.service_name)
         self._exe_file = "%s.exe" % self.service_name
