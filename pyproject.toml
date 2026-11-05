@@ -30,7 +30,7 @@ dependencies = [
 ]
 
 [project.urls]
-homepage = "https://github.com/Welflo/pypsexec"
+homepage = "https://github.com/jborean93/pypsexec"
 
 [tool.setuptools.packages.find]
 where = ["src"]
