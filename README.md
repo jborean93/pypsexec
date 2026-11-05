@@ -260,9 +260,11 @@ finally:
 ```
 
 In the case of a fatal failure, this project may leave behind some the PAExec
-payload in `C:\Windows` or the service still installed. As these are uniquely
-named they can build up over time. They can be manually removed but you can
-also use pypsexec to cleanup them all up at once. To do this run
+payload in `C:\Windows` or the service still installed. Each `Client` uses a
+UUID-based service name in the form `PAExec-<UUID>`; the matching executable
+uses the same name. These unique names can build up over time. They can be
+manually removed but you can also use pypsexec to cleanup them all up at once.
+To do this run
 
 ```python
 from pypsexec.client import Client
